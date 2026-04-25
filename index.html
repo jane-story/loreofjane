@@ -1,0 +1,5084 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>█ ACESSO NEGADO █</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Caveat:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --black:      #000000;
+  --deep:       #050000;
+  --blood:      #8b0000;
+  --red:        #cc0000;
+  --red-bright: #ff1a1a;
+  --red-dim:    #3a0000;
+  --red-ghost:  #1a0000;
+  --paper:      #e8dcc8;
+  --paper-old:  #c9b88a;
+  --ink:        #1a0f0a;
+  --ink-faded:  #4a3525;
+  --white-dim:  #aaaaaa;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--black);
+  color: var(--red);
+  font-family: 'Courier Prime', 'Courier New', monospace;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
+
+#binaryCanvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+#vignette {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center,
+    transparent 30%,
+    rgba(0,0,0,0.6) 70%,
+    rgba(0,0,0,0.95) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+#noise {
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#bloodDrip {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 120px;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    radial-gradient(ellipse 6px 80px at 8% 0,  var(--blood) 60%, transparent 100%),
+    radial-gradient(ellipse 4px 50px at 19% 0, var(--blood) 60%, transparent 100%),
+    radial-gradient(ellipse 7px 100px at 31% 0, var(--blood) 60%, transparent 100%),
+    radial-gradient(ellipse 3px 40px at 45% 0, var(--blood) 60%, transparent 100%),
+    radial-gradient(ellipse 5px 70px at 58% 0, var(--red-dim) 60%, transparent 100%),
+    radial-gradient(ellipse 8px 90px at 72% 0, var(--blood) 60%, transparent 100%),
+    radial-gradient(ellipse 4px 55px at 83% 0, var(--blood) 60%, transparent 100%),
+    radial-gradient(ellipse 6px 75px at 94% 0, var(--blood) 60%, transparent 100%);
+  animation: drip 20s infinite ease-in-out;
+  opacity: 0;
+  transition: opacity 2s;
+}
+
+@keyframes drip {
+  0%,100% { transform: scaleY(1); }
+  50%      { transform: scaleY(1.08); }
+}
+
+/* ══════════════════════════════════════
+   INTRO / BOOT SCREEN
+══════════════════════════════════════ */
+#intro {
+  position: fixed; inset: 0;
+  background: #000;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+#bootLog {
+  width: 100%;
+  max-width: 680px;
+  font-family: 'Courier Prime', monospace;
+  font-size: clamp(12px, 1.8vw, 15px);
+  line-height: 1.9;
+  color: #550000;
+}
+
+.boot-line {
+  display: block;
+  overflow: hidden;
+  white-space: pre;
+  opacity: 0;
+}
+
+.boot-line.ok   { color: #880000; }
+.boot-line.err  { color: var(--red-bright); font-weight: bold; }
+.boot-line.dim  { color: #330000; }
+.boot-line.warn { color: #aa4400; }
+.boot-line.final{ color: var(--red-bright); font-size: 1.3em; letter-spacing: 0.2em; text-align: center; }
+
+@keyframes reveal { to { opacity: 1; } }
+
+.boot-line.err {
+  animation: errShake 0.15s linear;
+}
+@keyframes errShake {
+  0%,100% { transform: none; }
+  25%  { transform: translateX(-4px) skewX(2deg); }
+  75%  { transform: translateX(3px) skewX(-1deg); }
+}
+
+/* ══════════════════════════════════════
+   MAIN CONTENT
+══════════════════════════════════════ */
+#main {
+  position: relative;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 1.5s;
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+#main.visible { opacity: 1; }
+
+.page-wrap {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 60px 28px 80px;
+}
+
+/* ══════════════════════════════════════
+   RHYTHM MINIGAME
+══════════════════════════════════════ */
+#rhythmGame {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.97);
+  z-index: 8000;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#rhythmGame.active { display: flex; animation: cfFade 0.3s ease-out; }
+
+.ag-panel {
+  max-width: 500px;
+  width: 92%;
+  border: 1px solid #2a0000;
+  padding: 36px 28px 28px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(139,0,0,0.15), inset 0 0 40px rgba(0,0,0,0.5);
+  position: relative;
+}
+.ag-panel::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--blood), transparent);
+}
+.ag-eyeline {
+  font-size: 22px;
+  color: #330000;
+  margin-bottom: 12px;
+  animation: blink 1.2s step-start infinite;
+}
+.ag-title {
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  color: var(--red-bright);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.ag-sub {
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  color: #550000;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+.ag-instruction {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: #660000;
+  margin-bottom: 20px;
+  line-height: 1.7;
+  border: 1px solid #1a0000;
+  padding: 10px 14px;
+}
+.ag-progress {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: #662222;
+  margin-bottom: 14px;
+}
+.ag-timer-wrap {
+  width: 100%; height: 2px;
+  background: #0d0000;
+  margin-bottom: 18px;
+  border: 1px solid #1a0000;
+}
+#rgTimerBar {
+  height: 100%;
+  background: var(--blood);
+  width: 100%;
+  transition: width 0.15s linear;
+}
+.rg-pads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+  width: 100%;
+}
+.rg-pad {
+  aspect-ratio: 1.2;
+  cursor: pointer;
+  border: 2px solid;
+  border-radius: 2px;
+  transition: filter 0.08s, box-shadow 0.08s, background 0.08s;
+  min-height: 70px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 6px 8px;
+}
+.rg-pad:active { filter: brightness(1.5); }
+.rg-pad .rg-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  opacity: 0.35;
+  font-family: 'Courier Prime', monospace;
+}
+.ag-msg {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: #880000;
+  min-height: 18px;
+  margin-bottom: 18px;
+}
+.ag-cancel {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: #2a0000;
+  cursor: pointer;
+  border: 1px solid #1a0000;
+  display: inline-block;
+  padding: 6px 18px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ag-cancel:hover { color: #660000; border-color: #440000; }
+
+/* Day sections */
+#day1 { display: block; }
+#day2 { display: none; }
+
+/* ══════════════════════════════════════
+   HEADER
+══════════════════════════════════════ */
+.site-header {
+  text-align: center;
+  margin-bottom: 48px;
+  position: relative;
+}
+
+.header-eye {
+  font-size: clamp(50px, 10vw, 90px);
+  line-height: 1;
+  color: var(--blood);
+  text-shadow:
+    0 0 30px var(--blood),
+    0 0 80px rgba(139,0,0,0.4);
+  animation: eyePulse 4s ease-in-out infinite;
+  display: block;
+  margin-bottom: 16px;
+  user-select: none;
+}
+
+@keyframes eyePulse {
+  0%,100% { text-shadow: 0 0 30px var(--blood), 0 0 80px rgba(139,0,0,0.4); }
+  50%      { text-shadow: 0 0 60px var(--red), 0 0 150px rgba(204,0,0,0.6), 0 0 8px #fff; }
+}
+
+.site-title {
+  font-family: 'Special Elite', serif;
+  font-size: clamp(26px, 5vw, 48px);
+  letter-spacing: 0.15em;
+  color: var(--red-bright);
+  text-shadow: 0 0 20px var(--blood), 2px 2px 0px #000;
+  line-height: 1.2;
+  animation: titleGlitch 9s infinite;
+}
+
+@keyframes titleGlitch {
+  0%,87%,100% { clip-path: none; transform: none; }
+  88% { clip-path: polygon(0 20%, 100% 20%, 100% 40%, 0 40%); transform: translateX(-5px); }
+  89% { clip-path: none; transform: none; }
+  91% { clip-path: polygon(0 55%, 100% 55%, 100% 80%, 0 80%); transform: translateX(4px); color: #fff; }
+  92% { clip-path: none; transform: none; color: var(--red-bright); }
+}
+
+.site-sub {
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  color: var(--red-dim);
+  margin-top: 10px;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════
+   WARNING STRIP
+══════════════════════════════════════ */
+.warn-strip {
+  background: var(--red-ghost);
+  border-top: 1px solid var(--blood);
+  border-bottom: 1px solid var(--blood);
+  padding: 10px 0;
+  margin: 32px 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.warn-strip-inner {
+  white-space: nowrap;
+  display: inline-block;
+  animation: marquee 18s linear infinite;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: var(--blood);
+}
+
+.warn-strip-inner span { margin: 0 40px; }
+
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* ══════════════════════════════════════
+   SECTION TITLES
+══════════════════════════════════════ */
+.sec-label {
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  color: var(--blood);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+}
+
+.sec-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--red-dim), transparent);
+}
+
+/* ══════════════════════════════════════
+   TEXT BLOCK
+══════════════════════════════════════ */
+.text-block {
+  background: rgba(10,0,0,0.7);
+  border-left: 2px solid var(--blood);
+  padding: 20px 22px;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+  color: #cc6666;
+  line-height: 1.9;
+  position: relative;
+}
+
+.text-block p + p { margin-top: 14px; }
+
+.text-block .hl  { color: var(--red-bright); }
+.text-block .dim { color: #552222; }
+
+.text-block::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--blood), transparent);
+  animation: scan 4s ease-in-out infinite;
+  opacity: 0.5;
+}
+
+@keyframes scan {
+  0%   { top: 0; opacity: 0; }
+  10%  { opacity: 0.5; }
+  90%  { opacity: 0.5; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ══════════════════════════════════════
+   CORRUPTED BLOCK
+══════════════════════════════════════ */
+.corrupt {
+  background: #080000;
+  border: 1px solid #2a0000;
+  padding: 14px 16px;
+  margin: 16px 0;
+  font-size: 11px;
+  color: #3a0000;
+  position: relative;
+  overflow: hidden;
+}
+
+.corrupt::before {
+  content: '⚠ SEGMENTO CORROMPIDO — RECONSTRUÇÃO FALHOU';
+  display: block;
+  font-size: 9px;
+  color: #aa4400;
+  letter-spacing: 0.2em;
+  border-bottom: 1px solid #1a0000;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.corrupt-text {
+  animation: corruptFlicker 5s infinite;
+  display: block;
+}
+
+@keyframes corruptFlicker {
+  0%,88%,100% { opacity: 0.4; transform: none; color: #3a0000; }
+  89%  { opacity: 1; transform: skewX(2deg) translateX(-2px); color: #aa2200; }
+  91%  { opacity: 0.2; }
+  93%  { opacity: 0.9; transform: skewX(-1deg); color: #660000; }
+  95%  { opacity: 0.4; transform: none; }
+}
+
+/* ══════════════════════════════════════
+   NOTEBOOK / HANDWRITTEN
+══════════════════════════════════════ */
+.nb-wrap {
+  margin: 30px 0;
+  position: relative;
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.9));
+}
+
+.nb-wrap:nth-child(odd)  { transform: rotate(-0.7deg); }
+.nb-wrap:nth-child(even) { transform: rotate(0.5deg); }
+
+.nb-page {
+  background: var(--paper);
+  background-image:
+    repeating-linear-gradient(transparent, transparent 27px, #b8a880 27px, #b8a880 28px),
+    linear-gradient(to right, transparent 44px, #c07070 44px, #c07070 45px, transparent 45px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+  padding: 28px 24px 32px 58px;
+  font-family: 'Caveat', cursive;
+  font-size: 19px;
+  line-height: 28px;
+  color: var(--ink);
+  border: 1px solid var(--paper-old);
+  position: relative;
+  overflow: hidden;
+}
+
+.nb-page::before {
+  content: '';
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 120px; height: 120px;
+  background: radial-gradient(ellipse, rgba(139,0,0,0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.nb-page .fold {
+  position: absolute;
+  top: 0; right: 0;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 0 42px 42px 0;
+  border-color: transparent var(--paper-old) transparent transparent;
+}
+
+.nb-page .fold::after {
+  content: '';
+  position: absolute;
+  top: 2px; right: -40px;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 0 38px 38px 0;
+  border-color: transparent #d9c49a transparent transparent;
+}
+
+.nb-page::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 10px;
+  background: var(--paper);
+  clip-path: polygon(
+    0% 100%, 1% 20%, 3% 80%, 6% 10%, 9% 70%, 12% 30%, 15% 90%,
+    18% 5%, 21% 65%, 24% 35%, 27% 85%, 30% 15%, 33% 75%,
+    36% 40%, 39% 90%, 42% 10%, 45% 60%, 48% 25%, 51% 80%,
+    54% 5%, 57% 70%, 60% 30%, 63% 85%, 66% 20%, 69% 75%,
+    72% 40%, 75% 90%, 78% 0%, 81% 65%, 84% 30%, 87% 80%,
+    90% 10%, 93% 55%, 96% 25%, 99% 70%, 100% 100%
+  );
+}
+
+.tape {
+  position: absolute;
+  top: -12px;
+  left: 40%;
+  transform: rotate(-3deg) translateX(-50%);
+  background: rgba(200, 180, 120, 0.4);
+  width: 90px; height: 26px;
+  border-left: 1px solid rgba(180,150,80,0.2);
+  border-right: 1px solid rgba(180,150,80,0.2);
+  z-index: 2;
+}
+
+.hand { display: block; }
+.hand.faded   { color: var(--ink-faded); font-size: 17px; }
+.hand.urgent  { color: #7a0a0a; font-weight: 700; font-size: 21px; }
+.hand.crossed { text-decoration: line-through; color: var(--ink-faded); }
+.hand.underln { text-decoration: underline; text-underline-offset: 4px; }
+
+.hand-circle {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 2px solid #7a0a0a;
+  border-radius: 50%;
+  color: #7a0a0a;
+  font-weight: 700;
+  transform: rotate(-1.5deg);
+}
+
+/* ══════════════════════════════════════
+   ANOMALY METER
+══════════════════════════════════════ */
+.anomaly-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(10,0,0,0.8);
+  border: 1px solid var(--red-dim);
+  margin: 24px 0;
+}
+
+.anomaly-label {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--blood);
+  white-space: nowrap;
+}
+
+.pips {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.pip {
+  flex: 1;
+  height: 12px;
+  background: var(--red-ghost);
+  border: 1px solid var(--red-dim);
+}
+
+.pip.on { background: var(--blood); box-shadow: 0 0 6px var(--blood); }
+.pip.pulse { animation: pipPulse 1.8s infinite; }
+
+@keyframes pipPulse {
+  0%,100% { background: var(--blood); opacity: 1; }
+  50%      { background: #330000; opacity: 0.4; }
+}
+
+.anomaly-num {
+  font-family: 'Special Elite', serif;
+  font-size: 22px;
+  color: var(--blood);
+  letter-spacing: 0.05em;
+}
+
+/* ══════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════ */
+.btn-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
+.btn {
+  padding: 10px 20px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--blood);
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.btn:nth-child(1) { transform: rotate(-1deg) skewX(-1.5deg); }
+.btn:nth-child(2) { transform: rotate(0.7deg) skewX(1deg); }
+.btn:nth-child(3) { transform: rotate(-1.5deg) skewX(-0.8deg); border-color: #550000; color: #550000; }
+
+.btn:hover {
+  background: var(--red-ghost);
+  box-shadow: 0 0 16px rgba(139,0,0,0.4);
+  color: var(--red-bright);
+  border-color: var(--red);
+}
+
+/* Back button (day2) */
+.btn-back {
+  padding: 10px 20px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  border: 1px solid #550000;
+  background: transparent;
+  color: #550000;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  transform: rotate(0.5deg) skewX(0.8deg);
+  margin-bottom: 40px;
+  display: inline-block;
+}
+
+.btn-back:hover {
+  background: var(--red-ghost);
+  color: var(--red);
+  border-color: var(--red);
+  box-shadow: 0 0 10px rgba(139,0,0,0.3);
+}
+
+/* ══════════════════════════════════════
+   ATTACHED IMAGE (day2)
+══════════════════════════════════════ */
+.attach-wrap {
+  margin: 36px 0 8px;
+  text-align: center;
+}
+
+.attach-label {
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  color: var(--blood);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+}
+
+.attach-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--red-dim), transparent);
+}
+
+.attach-frame {
+  display: inline-block;
+  padding: 14px 14px 36px;
+  background: #f1e5d0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  border: 1px solid #b8a47a;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.85), inset 0 0 40px rgba(139,90,40,0.15);
+  transform: rotate(-1.4deg);
+  position: relative;
+  max-width: 100%;
+}
+
+.attach-frame::before {
+  content: '';
+  position: absolute;
+  top: -14px; left: 50%;
+  transform: translateX(-50%) rotate(2deg);
+  width: 110px; height: 28px;
+  background: rgba(200, 180, 120, 0.55);
+  border-left: 1px solid rgba(180,150,80,0.2);
+  border-right: 1px solid rgba(180,150,80,0.2);
+}
+
+.attach-frame img {
+  display: block;
+  max-width: 100%;
+  width: 360px;
+  height: auto;
+  filter: contrast(0.95) saturate(0.85);
+}
+
+.attach-cap {
+  margin-top: 14px;
+  font-family: 'Caveat', cursive;
+  font-size: 20px;
+  color: #4a2a1a;
+  letter-spacing: 0.02em;
+}
+
+/* ══════════════════════════════════════
+   CONFIRM POPUP
+══════════════════════════════════════ */
+#confirmOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(2px);
+}
+
+#confirmOverlay.show { display: flex; animation: cfFade 0.25s ease-out; }
+
+@keyframes cfFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cf-box {
+  width: 100%;
+  max-width: 460px;
+  background: #0a0000;
+  border: 1px solid var(--blood);
+  box-shadow:
+    0 0 0 1px #2a0000 inset,
+    0 0 40px rgba(139,0,0,0.55),
+    0 0 120px rgba(139,0,0,0.25);
+  position: relative;
+  animation: cfShake 0.35s ease-out;
+}
+
+@keyframes cfShake {
+  0%   { transform: translate(-6px, 4px) skewX(2deg); opacity: 0; }
+  40%  { transform: translate(4px, -3px) skewX(-1deg); opacity: 1; }
+  70%  { transform: translate(-2px, 1px); }
+  100% { transform: none; }
+}
+
+.cf-bar {
+  background: var(--blood);
+  color: #ffe;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  padding: 8px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+}
+
+.cf-body {
+  padding: 22px 22px 18px;
+  color: #cc6666;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.cf-icon {
+  font-size: 36px;
+  color: var(--red-bright);
+  text-align: center;
+  display: block;
+  margin-bottom: 10px;
+  text-shadow: 0 0 18px var(--blood);
+  animation: eyePulse 2.5s ease-in-out infinite;
+}
+
+.cf-title {
+  font-family: 'Special Elite', serif;
+  font-size: 18px;
+  color: var(--red-bright);
+  letter-spacing: 0.18em;
+  text-align: center;
+  margin-bottom: 12px;
+  text-shadow: 0 0 12px var(--blood);
+}
+
+.cf-msg {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.cf-meta {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: #552222;
+  text-align: center;
+  margin: 12px 0 4px;
+}
+
+.cf-actions {
+  display: flex;
+  gap: 10px;
+  padding: 6px 18px 22px;
+  justify-content: center;
+}
+
+.cf-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  border: 1px solid var(--blood);
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.cf-btn:hover {
+  background: var(--red-ghost);
+  color: var(--red-bright);
+  box-shadow: 0 0 14px rgba(139,0,0,0.5);
+}
+
+.cf-btn.danger {
+  border-color: var(--red-bright);
+  color: var(--red-bright);
+}
+
+.cf-btn.danger:hover {
+  background: rgba(139,0,0,0.35);
+}
+
+/* ══════════════════════════════════════
+   FOOTER
+══════════════════════════════════════ */
+.site-footer {
+  border-top: 1px solid var(--red-ghost);
+  margin-top: 60px;
+  padding-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--red-dim);
+  letter-spacing: 0.1em;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.blink { animation: blink 1s step-start infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+#flash {
+  position: fixed; inset: 0;
+  background: var(--red-bright);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9000;
+}
+
+::-webkit-scrollbar { width: 4px; background: #000; }
+::-webkit-scrollbar-thumb { background: var(--blood); }
+
+/* ══════════════════════════════════════
+   PASSWORD OVERLAY
+══════════════════════════════════════ */
+#pwOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 1200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(3px);
+}
+
+#pwOverlay.show { display: flex; animation: cfFade 0.25s ease-out; }
+
+.pw-box {
+  width: 100%;
+  max-width: 500px;
+  background: #060000;
+  border: 1px solid var(--blood);
+  box-shadow:
+    0 0 0 1px #2a0000 inset,
+    0 0 60px rgba(139,0,0,0.7),
+    0 0 140px rgba(139,0,0,0.3);
+  animation: cfShake 0.35s ease-out;
+}
+
+.pw-bar {
+  background: var(--blood);
+  color: #ffe;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  padding: 8px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+}
+
+.pw-body {
+  padding: 24px 24px 14px;
+  color: #cc6666;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.pw-icon {
+  font-size: 40px;
+  color: var(--red-bright);
+  text-align: center;
+  display: block;
+  margin-bottom: 12px;
+  text-shadow: 0 0 20px var(--blood);
+  animation: eyePulse 2s ease-in-out infinite;
+}
+
+.pw-title {
+  font-family: 'Special Elite', serif;
+  font-size: 18px;
+  color: var(--red-bright);
+  letter-spacing: 0.18em;
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 0 0 12px var(--blood);
+}
+
+.pw-msg {
+  text-align: center;
+  margin-bottom: 6px;
+  color: #cc6666;
+}
+
+.pw-msg.small {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: #552222;
+  margin-top: 10px;
+}
+
+.pw-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px 6px;
+  align-items: stretch;
+}
+
+.pw-input {
+  flex: 1;
+  background: #0d0000;
+  border: 1px solid var(--blood);
+  color: var(--red-bright);
+  font-family: 'Courier Prime', monospace;
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  padding: 10px 14px;
+  outline: none;
+  caret-color: var(--red-bright);
+  transition: box-shadow 0.2s;
+}
+
+.pw-input:focus {
+  box-shadow: 0 0 16px rgba(139,0,0,0.55);
+}
+
+.pw-input.shake {
+  animation: pwShake 0.3s ease-out;
+  border-color: var(--red-bright);
+}
+
+@keyframes pwShake {
+  0%,100% { transform: none; }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+.pw-submit {
+  padding: 10px 18px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--red-bright);
+  background: transparent;
+  color: var(--red-bright);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.pw-submit:hover {
+  background: rgba(139,0,0,0.3);
+  box-shadow: 0 0 12px rgba(204,0,0,0.5);
+}
+
+.pw-hint {
+  margin: 0 24px 6px;
+  padding: 10px 14px;
+  background: rgba(139,0,0,0.12);
+  border-left: 2px solid var(--blood);
+  font-size: 11px;
+  color: #aa4400;
+  letter-spacing: 0.12em;
+  display: none;
+  animation: cfFade 0.4s ease-out;
+}
+
+.pw-hint.visible { display: block; }
+
+.pw-actions {
+  display: flex;
+  padding: 12px 24px 22px;
+  justify-content: flex-end;
+}
+
+.pw-cancel {
+  padding: 8px 16px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  border: 1px solid #3a0000;
+  background: transparent;
+  color: #553333;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.pw-cancel:hover {
+  color: var(--red);
+  border-color: var(--blood);
+}
+
+.pw-error-count {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: #552222;
+  text-align: center;
+  padding: 0 24px 4px;
+  min-height: 18px;
+}
+
+/* ══════════════════════════════════════
+   CRASH OVERLAY
+══════════════════════════════════════ */
+#crashOverlay {
+  position: fixed; inset: 0;
+  background: #000;
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#crashOverlay.active { display: flex; animation: crashShake 0.08s infinite; }
+
+@keyframes crashShake {
+  0%   { transform: translate(0,0) skewX(0deg); }
+  10%  { transform: translate(-4px, 2px) skewX(-1deg); }
+  20%  { transform: translate(3px, -3px) skewX(0.5deg); }
+  30%  { transform: translate(-2px, 1px) skewX(1deg); }
+  40%  { transform: translate(5px, -1px) skewX(-0.5deg); }
+  50%  { transform: translate(-3px, 3px) skewX(0deg); }
+  60%  { transform: translate(2px, -2px) skewX(1.5deg); }
+  70%  { transform: translate(-5px, 1px) skewX(-1deg); }
+  80%  { transform: translate(4px, 2px) skewX(0.5deg); }
+  90%  { transform: translate(-1px,-3px) skewX(-0.5deg); }
+  100% { transform: translate(0, 0) skewX(0deg); }
+}
+
+/* Scanlines overlay */
+#crashOverlay::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.35) 2px,
+    rgba(0,0,0,0.35) 4px
+  );
+  pointer-events: none;
+  z-index: 3;
+  animation: scanMove 0.4s linear infinite;
+}
+
+@keyframes scanMove {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 80px; }
+}
+
+/* RGB split layer */
+#crashOverlay::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: inherit;
+  z-index: 1;
+  mix-blend-mode: screen;
+  animation: rgbSplit 0.07s infinite;
+  pointer-events: none;
+}
+
+@keyframes rgbSplit {
+  0%,100% { transform: translate(0,0); opacity: 0; }
+  20%  { transform: translate(-8px, 0); opacity: 0.18; filter: hue-rotate(180deg); }
+  40%  { transform: translate(6px, -2px); opacity: 0.22; filter: hue-rotate(90deg); }
+  60%  { transform: translate(-4px, 3px); opacity: 0.15; filter: hue-rotate(270deg); }
+  80%  { transform: translate(7px, 0); opacity: 0.2; filter: hue-rotate(0deg); }
+}
+
+#crashCanvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+
+/* Flash layer */
+#crashFlashLayer {
+  position: absolute; inset: 0;
+  background: #ff0000;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.crash-content {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  pointer-events: none;
+  animation: crashFlicker 0.07s infinite;
+}
+
+@keyframes crashFlicker {
+  0%,78%,82%,86%,100% { opacity: 1; transform: none; }
+  79%  { opacity: 0; transform: translateX(-8px) skewX(5deg); }
+  80%  { opacity: 1; transform: translateX(6px) skewX(-3deg); }
+  83%  { opacity: 0.2; transform: translateX(-5px); }
+  84%  { opacity: 1; transform: translateX(4px) skewX(2deg); }
+  87%  { opacity: 0.5; transform: translateY(4px) skewX(-4deg); }
+  88%  { opacity: 1; }
+}
+
+.crash-code {
+  font-size: clamp(9px, 1.4vw, 12px);
+  color: #880000;
+  letter-spacing: 0.18em;
+  margin-bottom: 28px;
+  line-height: 1.9;
+  animation: codeGlitch 0.15s infinite;
+  text-align: left;
+  max-width: 600px;
+}
+
+@keyframes codeGlitch {
+  0%,88%,100% { transform: none; color: #880000; }
+  89% { transform: translateX(10px); color: #ff2200; filter: blur(0.5px); }
+  90% { transform: translateX(-6px) skewX(3deg); color: #550000; }
+  92% { transform: none; color: #ff4400; }
+  94% { transform: translateX(4px); color: #880000; }
+}
+
+.crash-title {
+  font-family: 'Special Elite', serif;
+  font-size: clamp(28px, 6vw, 56px);
+  color: var(--red-bright);
+  letter-spacing: 0.25em;
+  text-shadow:
+    0 0 30px var(--blood),
+    0 0 80px rgba(204,0,0,0.6),
+    4px 0 0 rgba(0,255,255,0.3),
+    -4px 0 0 rgba(255,0,255,0.3);
+  margin-bottom: 18px;
+  animation: crashTitleGlitch 0.18s infinite;
+}
+
+@keyframes crashTitleGlitch {
+  0%,70%,100% { clip-path: none; transform: none; }
+  71% { clip-path: polygon(0 0%, 100% 0%, 100% 22%, 0 22%); transform: translateX(-12px) skewX(5deg); color: #fff; }
+  72% { clip-path: polygon(0 22%, 100% 22%, 100% 45%, 0 45%); transform: translateX(10px) skewX(-3deg); }
+  73% { clip-path: none; transform: none; }
+  76% { clip-path: polygon(0 55%, 100% 55%, 100% 78%, 0 78%); transform: translateX(8px); color: #ff0; }
+  77% { clip-path: none; transform: none; color: var(--red-bright); }
+  82% { clip-path: polygon(0 10%, 100% 10%, 100% 35%, 0 35%); transform: translateX(-6px) scaleY(1.05); }
+  83% { clip-path: none; transform: scaleY(1); }
+  88% { transform: translateX(14px) skewX(-6deg); color: #ff4444; }
+  89% { transform: none; }
+}
+
+.crash-sub {
+  font-size: clamp(11px, 1.8vw, 14px);
+  color: #cc4444;
+  letter-spacing: 0.3em;
+  margin-bottom: 28px;
+  text-transform: uppercase;
+  animation: subFlicker 0.2s infinite;
+}
+
+@keyframes subFlicker {
+  0%,90%,100% { opacity: 1; transform: none; }
+  91% { opacity: 0; transform: translateX(-6px); }
+  93% { opacity: 1; transform: translateX(4px); }
+  95% { opacity: 0.4; }
+  96% { opacity: 1; }
+}
+
+.crash-console-hint {
+  font-size: clamp(10px, 1.4vw, 12px);
+  color: #662222;
+  letter-spacing: 0.25em;
+  border: 1px solid #3a0000;
+  padding: 10px 20px;
+  display: inline-block;
+  animation: blink 0.4s step-start infinite;
+}
+
+/* Horizontal tear bars */
+.crash-tear {
+  position: absolute;
+  left: 0; right: 0;
+  height: 3px;
+  background: rgba(255,0,0,0.7);
+  pointer-events: none;
+  z-index: 6;
+  animation: tearAnim 0.1s infinite;
+}
+
+@keyframes tearAnim {
+  0%,100% { opacity: 0; top: 20%; transform: scaleX(0.4) translateX(-30%); }
+  10% { opacity: 1; top: 20%; transform: scaleX(1.2) translateX(5%); }
+  20% { opacity: 0; }
+  35% { opacity: 1; top: 60%; transform: scaleX(0.7) translateX(10%); background: rgba(0,255,255,0.5); }
+  45% { opacity: 0; }
+  60% { opacity: 1; top: 40%; transform: scaleX(1) translateX(-8%); background: rgba(255,255,0,0.4); }
+  70% { opacity: 0; }
+  85% { opacity: 1; top: 75%; transform: scaleX(0.9) translateX(15%); background: rgba(255,0,0,0.6); }
+  95% { opacity: 0; }
+}
+
+@media (max-width: 600px) {
+  .nb-page { font-size: 16px; }
+  .btn-row { flex-direction: column; }
+  .attach-frame img { width: 100%; }
+  .ag-panel { padding: 24px 16px 20px; }
+  .ag-instruction { font-size: 9px; padding: 8px 10px; }
+  .ag-grid { gap: 5px; }
+}
+
+/* ══════════════════════════════════════
+   FORSAKEN GENERATOR MINIGAME
+══════════════════════════════════════ */
+#generatorGame.active { display: flex; animation: cfFade 0.3s ease-out; }
+
+.gen-panel {
+  max-width: 460px;
+  width: 94%;
+  border: 1px solid #2a0000;
+  padding: 30px 26px 24px;
+  text-align: center;
+  box-shadow: 0 0 70px rgba(139,0,0,0.18), inset 0 0 50px rgba(0,0,0,0.5);
+  position: relative;
+  background: rgba(4,0,0,0.97);
+}
+.gen-panel::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--blood), transparent);
+}
+.gen-scanline {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(139,0,0,0.03) 3px, rgba(139,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Core ring */
+.gen-core-wrap {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin: 10px auto 14px;
+  z-index: 1;
+}
+.gen-core-svg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+.gen-ring-bg {
+  fill: none;
+  stroke: #1a0000;
+  stroke-width: 10;
+}
+.gen-ring-fill {
+  fill: none;
+  stroke: var(--blood);
+  stroke-width: 10;
+  stroke-linecap: butt;
+  stroke-dasharray: 408;
+  stroke-dashoffset: 408;
+  transition: stroke-dashoffset 0.12s linear, stroke 0.2s;
+  transform: rotate(-90deg);
+  transform-origin: 80px 80px;
+}
+.gen-ring-fill.danger { stroke: var(--red-bright); filter: drop-shadow(0 0 6px var(--blood)); }
+
+.gen-core-btn {
+  position: absolute;
+  inset: 22px;
+  border-radius: 50%;
+  background: #0a0000;
+  border: 2px solid #2a0000;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background 0.08s, border-color 0.08s, box-shadow 0.08s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+.gen-core-btn:active,
+.gen-core-btn.holding {
+  background: #1a0000;
+  border-color: var(--blood);
+  box-shadow: 0 0 24px rgba(139,0,0,0.5), inset 0 0 12px rgba(139,0,0,0.2);
+}
+.gen-core-icon {
+  font-size: 28px;
+  color: #550000;
+  line-height: 1;
+  transition: color 0.08s, text-shadow 0.08s;
+}
+.gen-core-btn.holding .gen-core-icon {
+  color: var(--red-bright);
+  text-shadow: 0 0 14px var(--blood);
+  animation: genIconPulse 0.5s ease-in-out infinite;
+}
+@keyframes genIconPulse {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+.gen-core-label {
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: #440000;
+  text-transform: uppercase;
+  transition: color 0.08s;
+}
+.gen-core-btn.holding .gen-core-label { color: #880000; }
+
+/* Stage sparks (animation when skill check missed) */
+@keyframes genSpark {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+.gen-spark {
+  position: absolute; inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--red-bright);
+  animation: genSpark 0.4s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Stage dots */
+.gen-stages {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 1;
+}
+.gen-stage-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #1a0000;
+  border: 1px solid #330000;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.gen-stage-dot.done {
+  background: var(--blood);
+  box-shadow: 0 0 8px var(--blood);
+}
+
+/* Skill check overlay */
+#genSkillCheck {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(1px);
+}
+#genSkillCheck.visible { display: flex; }
+
+.gen-sc-ring {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+.gen-sc-svg {
+  width: 100%; height: 100%;
+  position: absolute; inset: 0;
+}
+.gen-sc-track {
+  fill: none;
+  stroke: #1a0000;
+  stroke-width: 14;
+}
+.gen-sc-zone {
+  fill: none;
+  stroke: var(--blood);
+  stroke-width: 14;
+  stroke-linecap: butt;
+  transform-origin: 70px 70px;
+}
+.gen-sc-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 46px;
+  background: var(--red-bright);
+  box-shadow: 0 0 8px var(--red-bright);
+  transform-origin: bottom center;
+  transform: translateX(-50%) translateY(-100%) rotate(0deg);
+  border-radius: 2px 2px 0 0;
+  transition: none;
+}
+.gen-sc-label {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--red-bright);
+  text-transform: uppercase;
+  text-align: center;
+  margin-top: 10px;
+  animation: blink 0.6s step-start infinite;
+}
+
+@media (max-width: 600px) {
+  .gen-core-wrap { width: 130px; height: 130px; }
+  .gen-ring-fill { stroke-dasharray: 332; stroke-dashoffset: 332; }
+  .gen-ring-bg { stroke-dasharray: 332; }
+  .gen-core-btn { inset: 18px; }
+  .gen-core-icon { font-size: 22px; }
+}
+
+
+.broken-link {
+  color: #6a1a1a;
+  border-color: #3b0d0d;
+  text-shadow: 0 0 10px rgba(139,0,0,0.18);
+  animation: brokenBtnFlicker 2.1s steps(1) infinite, brokenBtnPulse 3.4s ease-in-out infinite;
+}
+
+.broken-link:hover {
+  color: #aa2a2a;
+  border-color: #662222;
+}
+
+@keyframes brokenBtnFlicker {
+  0%, 14%, 18%, 53%, 57%, 100% { opacity: 1; filter: none; }
+  15% { opacity: 0.35; filter: blur(0.4px); }
+  16% { opacity: 0.9; }
+  54% { opacity: 0.25; transform: rotate(-1.5deg) skewX(-1.2deg) translateX(-1px); }
+  55% { opacity: 1; transform: rotate(-1.5deg) skewX(-0.8deg); }
+  56% { opacity: 0.45; }
+}
+
+@keyframes brokenBtnPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(139,0,0,0); }
+  50% { box-shadow: 0 0 18px rgba(139,0,0,0.24); }
+}
+
+#vhsSequence {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  z-index: 12000;
+  overflow: hidden;
+}
+
+#vhsSequence.active { display: flex; }
+
+#vhsSequence::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg,
+      rgba(255,255,255,0.05) 0px,
+      rgba(255,255,255,0.05) 1px,
+      transparent 1px,
+      transparent 4px),
+    linear-gradient(90deg,
+      rgba(255,0,0,0.035),
+      transparent 24%,
+      rgba(0,120,255,0.025) 74%,
+      transparent);
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 3;
+}
+
+#vhsSequence::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at center, transparent 34%, rgba(0,0,0,0.55) 72%, rgba(0,0,0,0.95) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E");
+  opacity: 0.33;
+  animation: vhsNoise 0.18s steps(2) infinite;
+  pointer-events: none;
+  z-index: 4;
+}
+
+@keyframes vhsNoise {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-1%, 1%); }
+  50% { transform: translate(1%, -1.5%); }
+  75% { transform: translate(-0.5%, 0.5%); }
+  100% { transform: translate(0, 0); }
+}
+
+#vhsVideo {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  background: #000;
+  filter: contrast(1.06) saturate(0.72) brightness(0.92);
+  z-index: 1;
+}
+
+#vhsVideo.ended {
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.vhs-blackout {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  z-index: 2;
+}
+
+.vhs-blackout.visible { opacity: 1; }
+
+.vhs-message {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(86vw, 760px);
+  text-align: center;
+  font-family: 'Special Elite', serif;
+  font-size: clamp(22px, 4.4vw, 44px);
+  letter-spacing: 0.18em;
+  color: #d6d1c7;
+  text-shadow:
+    0 0 10px rgba(255,255,255,0.16),
+    0 0 24px rgba(139,0,0,0.35),
+    2px 0 rgba(255,0,0,0.18),
+    -2px 0 rgba(0,140,255,0.16);
+  opacity: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.vhs-message.visible {
+  opacity: 1;
+  animation: vhsMsgFlicker 1.7s steps(2) infinite;
+}
+
+@keyframes vhsMsgFlicker {
+  0%, 14%, 17%, 60%, 63%, 100% { opacity: 1; transform: translate(-50%, -50%); }
+  15% { opacity: 0.15; transform: translate(calc(-50% - 3px), -50%); }
+  16% { opacity: 1; transform: translate(calc(-50% + 2px), calc(-50% - 1px)); }
+  61% { opacity: 0.35; }
+  62% { opacity: 1; transform: translate(calc(-50% - 1px), calc(-50% + 2px)); }
+}
+
+</style>
+</head>
+<body>
+
+<canvas id="binaryCanvas"></canvas>
+<div id="vignette"></div>
+<div id="noise"></div>
+<div id="bloodDrip"></div>
+<div id="flash"></div>
+
+<audio id="bgAudio" loop preload="auto">
+  <source src="jd-theme.ogg" type="audio/ogg">
+  <source src="jd-theme.mp3" type="audio/mpeg">
+</audio>
+<audio id="glitchAudio" preload="auto">
+  <source src="glitch.mp3" type="audio/mpeg">
+</audio>
+
+<!-- ══════════════════════════════════════
+     INTRO / BOOT SEQUENCE
+══════════════════════════════════════ -->
+<div id="intro">
+  <div id="bootLog"></div>
+</div>
+
+<!-- ══════════════════════════════════════
+     CONFIRM POPUP — ERRO INTERNO
+══════════════════════════════════════ -->
+<div id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+  <div class="cf-box">
+    <div class="cf-bar">
+      <span>SISTEMA <span class="blink">▌</span></span>
+      <span>ERR · 0x4F1A</span>
+    </div>
+    <div class="cf-body">
+      <span class="cf-icon">⚠</span>
+      <div class="cf-title" id="cfTitle">ERRO INTERNO</div>
+      <div class="cf-msg">Falha na verificação de integridade do registro.</div>
+      <div class="cf-msg">A leitura do arquivo retornou <span style="color:var(--red-bright)">inconsistências não tratáveis</span>.</div>
+      <div class="cf-meta">DESEJA CONTINUAR ACESSANDO MESMO ASSIM?</div>
+    </div>
+    <div class="cf-actions">
+      <button class="cf-btn" id="cfNoBtn">[ NÃO ]</button>
+      <button class="cf-btn danger" id="cfYesBtn">[ SIM ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════ -->
+<div id="main">
+  <div class="page-wrap">
+
+    <!-- ══════════════ DIA 1 ══════════════ -->
+    <div id="day1">
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 1 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ ORIGEM DESCONHECIDA</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ ORIGEM DESCONHECIDA</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow1">
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip pulse"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum1">03/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Abertura</div>
+      <div class="text-block">
+        <p>Eu decidi registrar isso hoje, mesmo não sendo necessário. Não é parte de nenhum protocolo, ninguém solicitou e, se eu fosse seguir o padrão esperado, esse tipo de anotação nem existiria.</p>
+        <p>Ainda assim, deixar tudo apenas na minha memória não parece suficiente. <span class="hl">Memória falha, distorce, preenche lacunas com suposições.</span></p>
+        <p class="dim">Isso aqui não é um relatório técnico. É só… um ponto de referência.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — Análise de Código Legado</div>
+      <div class="text-block">
+        <p>Hoje fui designada para análise de código legado. Nada fora do comum. Estruturas antigas, funções abandonadas, fragmentos que sobreviveram a atualizações sucessivas sem motivo claro.</p>
+        <p>O processo é simples: <span class="hl">identificar, validar e apagar.</span> Limpo, direto, previsível.</p>
+        <p>Mas esse conjunto específico já começou errado.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [SRC:/legacy/core/0x4F1A] HASH ESPERADO: 9f3c2a81... ENCONTRADO: ████████<br>
+          DIVERGÊNCIA: NÃO CALCULÁVEL — TENTATIVA 1/3: FALHOU — 2/3: FALHOU — 3/3: FALHOU<br>
+          01001010 01000001 01001110 01000101 00100000 01000100 01001111 01000101<br>
+          [NULL][NULL] 0xFF 0x00 [ENDEREÇO INVÁLIDO] 0x00 0x00 0x00...
+        </span>
+      </div>
+
+      <div class="text-block">
+        <p>Os dados vieram sem documentação adequada. Não havia histórico consistente, nem registro claro de origem. <span class="hl">Sistemas bem mantidos deixam rastros — sempre deixam.</span></p>
+        <p class="dim">Aqui, esse caminho simplesmente não existe. Ou foi removido de uma forma que eu ainda não consegui identificar.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Passei as primeiras horas só <span class="underln">observando</span>.</span>
+          <span class="hand faded">É um erro comum começar apagando coisas sem saber o que fazem.</span>
+          <span class="hand">Deixei como estava. Comecei a mapear padrões.</span>
+          <span class="hand">Estrutura, dependências, chamadas.</span>
+          <span class="hand">Tudo dentro do esperado…</span>
+          <span class="hand urgent">até não estar mais.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Instâncias Anômalas</div>
+      <div class="text-block">
+        <p>Encontrei uma função marcada como deletada em versões anteriores. Nada complexo, algo pequeno, quase irrelevante. Mas ela estava <span class="hl">ativa</span>.</p>
+        <p class="dim">A princípio, considerei erro de sincronização. Ignorei e continuei.</p>
+        <p>Então encontrei outra.</p>
+        <p>E depois mais uma.</p>
+        <p class="dim">Todas com o mesmo padrão: registradas como removidas, sem qualquer log de reintrodução, mas presentes e funcionando normalmente. Isso já não se encaixa em falha simples.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          FUNC [fn_███████] :: ESPERADO: DELETADO :: REAL: ATIVO :: LOG: &lt;NÃO EXISTE&gt;<br>
+          FUNC [fn_███████] :: ESPERADO: DELETADO :: REAL: ATIVO :: LOG: &lt;NÃO EXISTE&gt;<br>
+          FUNC [fn_███████] :: ESPERADO: DELETADO :: REAL: ATIVO :: LOG: &lt;NÃO EXISTE&gt;<br>
+          não é deleção padrão — não é NULL — é como se nunca tivesse sido registrada
+        </span>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Afastei da tela por alguns minutos.</span>
+          <span class="hand faded">Não por cansaço — o raciocínio não estava fechando.</span>
+          <span class="hand">Quando algo não faz sentido,</span>
+          <span class="hand">forçar uma conclusão só piora.</span>
+          <br>
+          <span class="hand">Quando voltei, notei a diferença <span class="underln">imediatamente</span>.</span>
+          <br>
+          <span class="hand faded">Não foi uma mudança grande. Nada gritante.</span>
+          <span class="hand">Uma linha que eu tinha certeza</span>
+          <span class="hand">que <span class="hand-circle">não estava ali</span>… estava.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — Observação Final</div>
+      <div class="text-block">
+        <p>Revisei o histórico local. Nada. Nenhuma alteração registrada, nenhuma atualização, nenhum processo ativo que justificasse aquilo. A linha simplesmente existia agora, como se sempre tivesse estado ali.</p>
+        <p class="dim">Passei mais tempo verificando, tentando provar que eu tinha cometido um erro de observação. Isso seria o mais lógico.</p>
+        <p>Mas quanto mais eu revisava, <span class="hl">menos essa hipótese se sustentava.</span></p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 25%; transform: rotate(2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand crossed">Eu cometi um erro de observação.</span>
+          <span class="hand crossed">Provavelmente está quebrado.</span>
+          <br>
+          <span class="hand">Existe uma diferença entre algo que</span>
+          <span class="hand">está <span class="underln">quebrado</span>…</span>
+          <span class="hand">e algo que está se comportando de</span>
+          <span class="hand">forma <span class="underln">inesperada</span>.</span>
+          <br>
+          <span class="hand urgent">Isso não parece quebrado.</span>
+          <span class="hand" style="font-size:21px; font-weight:700;">Parece… <em>persistente</em>.</span>
+          <br>
+          <span class="hand faded">Vou continuar amanhã.</span>
+          <span class="hand faded">Preciso de mais dados.</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day1 -->
+
+    <!-- ══════════════ DIA 2 ══════════════ -->
+    <div id="day2">
+
+      <button class="btn-back" id="btnBack">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 2 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ ORIGEM DESCONHECIDA</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ ORIGEM DESCONHECIDA</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow2">
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip pulse"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum2">05/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Retorno</div>
+      <div class="text-block">
+        <p>Retornei ao mesmo conjunto de dados hoje com a intenção de confirmar uma hipótese simples: <span class="hl">erro de observação.</span> Era a explicação mais segura para o que registrei ontem.</p>
+        <p>Se eu estivesse certa, então as inconsistências desapareceriam sob uma análise mais controlada. Se eu estivesse errada… isso também ficaria evidente. Em qualquer um dos casos, o resultado deveria ser conclusivo.</p>
+        <p class="dim">Não foi.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — Teste de Persistência</div>
+      <div class="text-block">
+        <p>Comecei do zero. Recarreguei o ambiente, isolei os fragmentos e refiz o mapeamento completo. Mesma estrutura, mesmas dependências aparentes, mesmas funções marcadas como removidas e <span class="hl">ainda assim presentes</span>. Até aí, nada novo.</p>
+        <p>O problema começou quando passei a testar comportamento em tempo real. Eu não fiz nada complexo. Apenas observei como o sistema reagia a pequenas alterações locais, mudanças controladas, reversíveis.</p>
+        <p>Removi uma das funções que identifiquei ontem. Fiz isso manualmente, fora de qualquer rotina automática, para garantir que não haveria interferência de processos externos. A remoção foi concluída sem erro. Confirmei. Revisei. <span class="hl">A função não estava mais lá.</span></p>
+        <p class="dim">Esperei. Não havia motivo para esperar, mas ainda assim esperei.</p>
+        <p>Após alguns minutos, atualizei o ambiente.</p>
+        <p class="hl">A função havia retornado.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          OP: DELETE [fn_███████] :: STATUS: OK :: VERIFICAÇÃO: OK :: ELEMENTO REMOVIDO<br>
+          WAIT t+04m12s :: REFRESH ENV ::<br>
+          OP: SCAN :: ENCONTRADO [fn_███████] :: HASH: IDÊNTICO :: LOG DE RESTAURAÇÃO: &lt;NÃO EXISTE&gt;<br>
+          não há ponto de origem — não há central — e ainda assim recompõe
+        </span>
+      </div>
+
+      <div class="text-block">
+        <p>Não como um duplicado, não como uma cópia residual. Era a mesma estrutura, no mesmo lugar, com o mesmo comportamento. Não havia registro de recriação, nem qualquer log indicando que algo havia sido restaurado. Simplesmente… <span class="hl">voltou.</span></p>
+        <p>Repeti o processo. Dessa vez, removi duas funções diferentes, em pontos distintos do conjunto. Resultado idêntico. Ambas retornaram após atualização, novamente sem qualquer evidência de processo intermediário.</p>
+        <p class="dim">Eu não estou lidando com uma simples falha de sincronização. Isso implicaria um ponto de origem estável de onde os dados são restaurados. Aqui não há origem identificável. Não há ponto central. Ainda assim, o sistema se recompõe.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Decidi alterar em vez de remover.</span>
+          <span class="hand faded">Modifiquei parâmetros internos de uma função.</span>
+          <span class="hand">Nada estrutural. Só valores que afetariam</span>
+          <span class="hand">o comportamento de execução.</span>
+          <br>
+          <span class="hand">Por um curto período,</span>
+          <span class="hand">o sistema respondeu de acordo com a mudança.</span>
+          <br>
+          <span class="hand">Em seguida…</span>
+          <span class="hand urgent">os valores retornaram.</span>
+          <span class="hand faded">Sem registro.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Rejeição Ativa</div>
+      <div class="text-block">
+        <p>Não é só persistência.</p>
+        <p class="hl">É rejeição ativa de alteração.</p>
+        <p>Isso implica que o sistema <span class="hl">"sabe"</span> qual é o estado correto… mesmo que esse estado não esteja documentado em lugar nenhum.</p>
+        <p class="dim">Eu passei mais tempo do que deveria nisso. Perdi a noção do horário em algum ponto entre as repetições. Não por descuido, mas porque o padrão começou a se tornar… consistente demais para ser ignorado.</p>
+        <p>Não há aleatoriedade aqui. Tudo que eu tentei alterar foi revertido. Tudo que eu tentei remover foi restaurado. <span class="hl">Sempre da mesma forma, sempre sem deixar rastros.</span></p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          SET param[██]=NEW :: APLICADO :: t+00m00s<br>
+          STATE OBSERVADO == NEW :: t+00m47s<br>
+          STATE OBSERVADO == OLD :: t+02m13s :: TRIGGER: &lt;NÃO IDENTIFICADO&gt;<br>
+          DIFF DE ROLLBACK: 0 BYTES :: NENHUMA OPERAÇÃO REGISTRADA
+        </span>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Em algum momento,</span>
+          <span class="hand">senti que não estava mais apenas testando.</span>
+          <br>
+          <span class="hand urgent">Estava sendo… <span class="underln">observado</span>.</span>
+          <br>
+          <span class="hand faded">Isso não é uma conclusão técnica.</span>
+          <span class="hand faded">Eu não tenho dados pra sustentar isso.</span>
+          <br>
+          <span class="hand">Mas a sensação veio acompanhada</span>
+          <span class="hand">de um detalhe que eu</span>
+          <span class="hand">não consigo explicar de outra forma.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — Sequência Estranha</div>
+      <div class="text-block">
+        <p>Enquanto revisava uma das estruturas, notei uma sequência de instruções que eu <span class="hl">não reconhecia</span>. Não fazia parte do padrão original que eu havia mapeado. Não estava lá antes.</p>
+        <p>Dessa vez, eu tenho certeza.</p>
+        <p>Eu não toquei naquilo imediatamente. Apenas observei. A sequência não fazia nada visível. Nenhuma chamada direta, nenhuma saída clara. Mas estava integrada ao restante do sistema <span class="hl">como se sempre tivesse feito parte dele.</span></p>
+        <p class="dim">Afastei a interface por um momento.</p>
+        <p>Quando voltei, a sequência havia mudado. Não completamente. Apenas o suficiente para que eu percebesse que <span class="hl">não era estática.</span></p>
+        <p class="dim">Eu não registrei isso em nenhum sistema oficial. Ainda não. Não sem entender melhor o que estou lidando. Se isso for interpretado como instabilidade comum, vão encerrar a análise antes que eu consiga extrair qualquer conclusão real. E eu preciso entender.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — Visita Inesperada</div>
+      <div class="text-block">
+        <p>No meio disso tudo, ele apareceu.</p>
+        <p>O nome dele era <span class="hl">John Doe</span>.</p>
+        <p>Ele não estava envolvido diretamente na análise, mas passou pelo setor e acabou vendo minha tela aberta. Perguntou o que eu estava fazendo. Eu expliquei, de forma resumida. Disse que havia inconsistências no código legado e que eu estava tentando identificar a origem.</p>
+        <p class="dim">Ele olhou por alguns segundos.</p>
+        <p>Disse que parecia normal. Que eu provavelmente estava procurando padrão onde não tinha. Que código antigo sempre dá problema.</p>
+        <p class="dim">Depois riu. Disse para eu não perder o dia com algo que provavelmente seria descartado depois.</p>
+        <p>Eu não respondi imediatamente. Porque parte de mim considerou a possibilidade de ele estar certo.</p>
+        <p>Mas outra parte… <span class="hl">não aceitou.</span></p>
+        <p class="dim">Antes de sair, ele disse que eu deveria descansar mais. Que eu estava levando isso a sério demais.</p>
+        <p>Talvez eu esteja.</p>
+        <p>Mas isso não muda o fato de que o comportamento continua sem explicação.</p>
+      </div>
+
+      <div class="attach-wrap">
+        <div class="attach-label">▸ Anexo — Identificação Visual</div>
+        <div class="attach-frame">
+          <img src="john-doe.webp" alt="Retrato — John Doe (rosto não registrado)">
+          <div class="attach-cap">— John Doe, dia 2.</div>
+        </div>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 25%; transform: rotate(2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Quando ele saiu, voltei pra tela.</span>
+          <span class="hand">A sequência que eu havia observado antes…</span>
+          <span class="hand urgent">não estava mais lá.</span>
+          <br>
+          <span class="hand faded">Nenhum registro de remoção.</span>
+          <span class="hand faded">Nenhum vestígio.</span>
+          <br>
+          <span class="hand">Se eu não tivesse visto,</span>
+          <span class="hand">não haveria <span class="hand-circle">prova</span> de que existiu.</span>
+          <br>
+          <span class="hand">Isso é o que mais me incomoda.</span>
+          <span class="hand">Não é a anomalia em si.</span>
+          <span class="hand">É o fato de que ela <span class="underln">não deixa rastro</span>.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — Encerramento</div>
+      <div class="text-block">
+        <p class="hl">Eu não consigo provar nada.</p>
+        <p>Ainda.</p>
+        <p>Vou continuar amanhã. Eu preciso de algo concreto. Um padrão que não possa ser descartado.</p>
+        <p class="dim">Porque se isso continuar apenas no nível de observação… eventualmente vão assumir que <span class="hl">o erro sou eu.</span></p>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay3">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day2 -->
+
+    <!-- ══════════════ DIA 3 (NÃO AUTORIZADO) ══════════════ -->
+    <div id="day3" style="display:none;">
+
+      <button class="btn-back" id="btnBack3">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA ?? &nbsp;·&nbsp; ACESSO RESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ REGISTRO NÃO AUTORIZADO</span>
+          <span>◈ FORA DO PROTOCOLO</span>
+          <span>█ ENTRADA NÃO INDEXADA</span>
+          <span>⚠ CONTEÚDO SENSÍVEL DETECTADO</span>
+          <span>◈ ACESSO CRIPTOGRAFADO</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+          <span>⚠ REGISTRO NÃO AUTORIZADO</span>
+          <span>◈ FORA DO PROTOCOLO</span>
+          <span>█ ENTRADA NÃO INDEXADA</span>
+          <span>⚠ CONTEÚDO SENSÍVEL DETECTADO</span>
+          <span>◈ ACESSO CRIPTOGRAFADO</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow3">
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum3">07/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Nota Preliminar</div>
+      <div class="text-block">
+        <p>Eu não pretendia incluir isso aqui.</p>
+        <p>Esse registro começou como uma forma de manter controle sobre o trabalho. Um ponto fixo em meio a inconsistências. Mas ignorar certos detalhes também é uma forma de distorção, e eu já estou lidando com coisas demais que não fazem sentido para começar a omitir partes da realidade por conveniência.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — Retorno</div>
+      <div class="text-block">
+        <p>Ele voltou hoje.</p>
+        <p class="dim">Não foi a primeira vez desde o último registro, mas foi a primeira vez que ele não passou direto.</p>
+        <p>O nome dele era <span class="hl">John Doe</span>. Ainda é, tecnicamente. Isso não mudou. Nada mudou, na verdade. Exceto… frequência. Presença. Ele começou a aparecer mais vezes no setor, mesmo sem motivo direto para isso. No começo eu não associei uma coisa à outra. Ambientes compartilhados fazem isso. Pessoas cruzam caminhos.</p>
+        <p class="dim">Mas depois deixou de parecer coincidência.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 60%; transform: rotate(-2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Ele parou ao meu lado enquanto eu</span>
+          <span class="hand">analisava um dos fragmentos.</span>
+          <span class="hand faded">Não comentou nada de imediato,</span>
+          <span class="hand faded">só observou a tela por alguns segundos.</span>
+          <br>
+          <span class="hand">Eu achei que ele iria repetir o que disse antes.</span>
+          <span class="hand crossed">Perda de tempo.</span>
+          <span class="hand crossed">Complicando algo simples.</span>
+          <br>
+          <span class="hand urgent">Mas não foi isso que aconteceu.</span>
+          <br>
+          <span class="hand">Ele apontou para uma das funções.</span>
+          <span class="hand">Perguntou por que aquilo estava ali.</span>
+          <br>
+          <span class="hand">Eu expliquei.</span>
+          <span class="hand underln">Ele não riu dessa vez.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Padrão Novo</div>
+      <div class="text-block">
+        <p>Nos dias seguintes, ele voltou. Às vezes com desculpas vagas, às vezes sem nenhuma. Começou a fazer perguntas mais específicas. Não sobre o sistema inteiro, mas sobre partes isoladas. Pequenos detalhes. Coisas que a maioria ignoraria.</p>
+        <p class="dim">Eu respondi no início apenas por hábito. Explicar processos é parte do trabalho. Mas, em algum ponto, deixou de ser só isso.</p>
+        <p>Ele não estava apenas perguntando.</p>
+        <p class="hl">Estava tentando entender.</p>
+        <p class="dim">A diferença é clara quando você presta atenção.</p>
+      </div>
+
+      <div class="text-block">
+        <p>Nós começamos a trabalhar juntos em alguns momentos. Nada oficial. Não houve designação formal, nenhum registro que vinculasse ele ao projeto. Mas ele aparecia, puxava uma cadeira e ficava. Às vezes ajudando, às vezes só acompanhando.</p>
+        <p>O tempo começou a se organizar de forma diferente quando ele estava ali. <span class="hl">Menos… mecânico.</span></p>
+        <p class="dim">Eu não notei quando isso deixou de ser incomum. Só percebi quando passou a ser esperado.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Houve um dia específico —</span>
+          <span class="hand faded">não marquei a data, mas deveria ter —</span>
+          <span class="hand">em que ficamos horas revisando</span>
+          <span class="hand">a mesma estrutura.</span>
+          <br>
+          <span class="hand faded">Não porque era necessário.</span>
+          <span class="hand">Porque nenhum de nós queria</span>
+          <span class="hand">encerrar aquilo ainda.</span>
+          <br>
+          <span class="hand crossed">Foi improdutivo.</span>
+          <br>
+          <span class="hand urgent">E ainda assim foi o dia mais eficiente</span>
+          <span class="hand urgent">que tive desde que comecei esse projeto.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — Desvio de Padrão</div>
+      <div class="text-block">
+        <p>Ele começou a trazer coisas externas ao trabalho. Comentários aleatórios, observações que não tinham relação direta com o sistema. Eu não sou boa nesse tipo de interação. Nunca fui. Prefiro coisas que possam ser medidas, verificadas, repetidas. Conversa não entra nessa categoria.</p>
+        <p class="dim">Mas com ele… não parecia perda de tempo.</p>
+        <p>Eu comecei a responder.</p>
+        <p class="hl">Depois, comecei a iniciar.</p>
+        <p class="dim">Isso é… incomum para mim.</p>
+      </div>
+
+      <div class="text-block">
+        <p class="dim">Os meses passaram sem que eu registrasse aqui. Não por esquecimento, mas porque o foco mudou. O trabalho continuou, as inconsistências também, mas deixaram de ser a única coisa ocupando espaço.</p>
+        <p>Eu ainda analisava, ainda testava, ainda buscava padrões. Só que agora havia interrupções. Pausas que não eram impostas, <span class="hl">mas escolhidas.</span></p>
+        <p class="dim">Ele me tirava da tela com facilidade. Isso deveria ter me incomodado mais do que incomodou.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [REG. TEMPORAL AUSENTE] — INTERVALO NÃO DOCUMENTADO<br>
+          ESTIMATIVA: MESES :: DADOS: INCONCLUSIVOS<br>
+          COMPORTAMENTO OBSERVADO: DESVIO DE ROTINA PERSISTENTE :: ORIGEM: NÃO IDENTIFICADA<br>
+          nota: padrão não corresponde a nenhum protocolo registrado
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — O Momento</div>
+      <div class="text-block">
+        <p>Em algum ponto, passamos a sair juntos depois do expediente. Não como algo formal. Nunca houve uma declaração clara, nenhum momento definido que marcasse "início". Foi uma progressão lenta demais para ser delimitada.</p>
+        <p class="dim">Eu tentei identificar quando isso mudou. Não consegui. Talvez não tenha mudado de uma vez. Talvez só tenha… acumulado.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 35%; transform: rotate(1.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Estávamos sentados, revisando algo</span>
+          <span class="hand">que já não exigia revisão.</span>
+          <br>
+          <span class="hand faded">Ele disse que eu pensava demais.</span>
+          <span class="hand faded">Eu respondi que ele pensava de menos.</span>
+          <span class="hand">Ele riu. Eu não.</span>
+          <br>
+          <span class="hand">Ele continuou olhando para mim</span>
+          <span class="hand">mesmo depois da resposta.</span>
+          <br>
+          <span class="hand faded">Isso foi… desconfortável.</span>
+          <span class="hand faded">Não no sentido negativo.</span>
+          <br>
+          <span class="hand">Desconfortável porque eu não sabia</span>
+          <span class="hand">o que fazer com aquilo.</span>
+        </div>
+      </div>
+
+      <div class="text-block">
+        <p>Ele perguntou se eu já tinha considerado parar por um tempo. Não o projeto. Só… desacelerar. Eu disse que não fazia sentido. Ele disse que nem tudo precisa fazer sentido para valer a pena.</p>
+        <p class="dim">Eu não concordei. Mas também não argumentei.</p>
+        <p>Ficamos em silêncio por alguns segundos.</p>
+        <p>Depois ele disse meu nome.</p>
+        <p class="hl">De um jeito diferente.</p>
+        <p class="dim">Mais lento. Como se estivesse testando algo.</p>
+        <p>Eu respondi. Não lembro exatamente o que disse. Mas lembro que não parecia mais uma conversa comum.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — Encerramento</div>
+      <div class="text-block">
+        <p class="dim">Depois disso, as coisas não voltaram ao que eram antes. Não houve anúncio. Não houve definição.</p>
+        <p>Mas também <span class="hl">não houve dúvida.</span></p>
+        <p>Nós passamos a existir… juntos.</p>
+        <p class="dim">Isso não estava nos meus planos. Não fazia parte de nenhuma projeção. Mas, pela primeira vez em muito tempo, eu não senti necessidade de corrigir isso.</p>
+      </div>
+
+      <div class="attach-wrap">
+        <div class="attach-label">▸ Anexo — Registro Visual</div>
+        <div class="attach-frame" style="transform: rotate(1.2deg);">
+          <img src="melhor-dia.jpg" alt="Registro — sem data">
+          <div class="attach-cap">— sem data. mas eu lembro.</div>
+        </div>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Esse registro começou como um ponto fixo.</span>
+          <span class="hand faded">Uma forma de manter controle.</span>
+          <br>
+          <span class="hand">Não sei mais se ele ainda cumpre</span>
+          <span class="hand">essa função.</span>
+          <br>
+          <span class="hand">Mas continuo escrevendo.</span>
+          <br>
+          <span class="hand urgent">E talvez esse tenha sido</span>
+          <span class="hand urgent">o meu segundo erro.</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay4">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day3 -->
+
+    <!-- ══════════════ DIA 4 ══════════════ -->
+    <div id="day4" style="display:none;">
+
+      <button class="btn-back" id="btnBack4">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 256 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ ORIGEM DESCONHECIDA</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ ORIGEM DESCONHECIDA</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow4">
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on"></div>
+          <div class="pip on pulse"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum4">08/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Reestruturação Formal</div>
+      <div class="text-block">
+        <p>Hoje houve uma mudança formal. Até agora, tudo que eu e o <span class="hl">John Doe</span> fizemos juntos existia fora de qualquer registro oficial. Não havia designação, nem responsabilidade compartilhada. Ele apenas aparecia, e eu não impedia.</p>
+        <p class="dim">Isso deixou de ser possível.</p>
+        <p>O setor foi reestruturado, equipes foram reorganizadas e o foco mudou: o código legado deixou de ser tratado como resíduo descartável e passou a ser classificado como <span class="hl">potencial ativo reaproveitável.</span> A justificativa foi "otimização de recursos internos", mas, na prática, significa que decidiram parar de ignorar aquilo.</p>
+        <p class="dim">Eu fui mantida no projeto. Ele também. Agora existe um vínculo formal entre nós dois e o sistema.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — A Proposta</div>
+      <div class="text-block">
+        <p>A proposta apresentada é ambiciosa demais para o material que temos. Eles acreditam que os fragmentos não são apenas erros acumulados, mas partes de um modelo antigo que pode ser reutilizado para algo novo — algo que não depende de estrutura rígida, que se adapta, que se reorganiza sozinho, <span class="hl">que persiste mesmo quando partes falham.</span></p>
+        <p class="dim">Eles chamaram isso de avanço. Eu reconheci outra coisa, mas não registrei oficialmente.</p>
+        <p>Aceitei continuar, não por concordar, mas porque agora tenho acesso ampliado. Mais dados significam mais controle, e, se existe algo errado, essa é a melhor posição para observar.</p>
+        <p>Ele, por outro lado, pareceu genuinamente animado. Onde eu vejo risco, ele vê possibilidade. Onde eu vejo inconsistência, ele vê algo em formação. <span class="dim">Não é ingenuidade. É outra forma de interpretar.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Trabalho Conjunto</div>
+      <div class="text-block">
+        <p>Passamos o dia trabalhando juntos de forma contínua, sem interrupções ou justificativas externas. Dividimos tarefas naturalmente: ele focado em testes de comportamento, eu na análise estrutural.</p>
+        <p>Em determinado momento, percebemos algo que não estava previsto. <span class="hl">O sistema respondia melhor quando não tentávamos forçar um resultado específico.</span> Quando dávamos espaço.</p>
+        <p class="dim">Isso não deveria fazer sentido. Sistemas não "preferem" nada. Eles executam. Ainda assim, o comportamento era consistente o suficiente para não ser ignorado.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left:55%; transform:rotate(-1.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Ele comentou primeiro.</span>
+          <span class="hand faded">Sugeriu que talvez estivéssemos</span>
+          <span class="hand faded">tentando controlar demais.</span>
+          <br>
+          <span class="hand">Eu argumentei que controle é necessário.</span>
+          <span class="hand">Ele respondeu que talvez aquilo</span>
+          <span class="hand">não funcione com controle tradicional.</span>
+          <br>
+          <span class="hand crossed">Eu não corrigi.</span>
+        </div>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [RESUMO APRESENTADO] — APROVAÇÃO: IMEDIATA :: ENTENDIMENTO: PARCIAL<br>
+          PALAVRA USADA: "REVOLUCIONÁRIO" :: ANÁLISE DE CUSTO: AUSENTE<br>
+          NOTA INTERNA: essa palavra ignora o custo.<br>
+          registro encerrado antes de qualquer objeção formal
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — O Parque</div>
+      <div class="text-block">
+        <p>Saímos mais tarde do que o normal. O prédio já estava quase vazio, e o silêncio depois da atividade constante deveria ser incômodo.</p>
+        <p class="dim">Hoje não foi.</p>
+        <p>Ele sugeriu sair. Não havia destino específico. Eu aceitei. Fomos até um parque próximo — um ambiente sem função prática direta, mas suficiente para interromper o padrão repetitivo do dia.</p>
+        <p>Caminhamos sem direção definida e, pela primeira vez desde que começamos a trabalhar juntos, <span class="hl">não falamos sobre o projeto.</span> Ele trouxe assuntos simples, irrelevantes do ponto de vista técnico, mas estranhamente… necessários. Eu respondi mais do que o esperado.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Em algum momento, paramos</span>
+          <span class="hand">sem motivo claro.</span>
+          <br>
+          <span class="hand faded">A conversa não terminou,</span>
+          <span class="hand faded">apenas deixou de ser necessária.</span>
+          <br>
+          <span class="hand">Ele me observou por alguns segundos,</span>
+          <span class="hand">e isso foi suficiente para quebrar</span>
+          <span class="hand">qualquer linha de raciocínio</span>
+          <span class="hand">que eu ainda tentava manter.</span>
+          <br>
+          <span class="hand faded">Eu deveria ter dito algo.</span>
+          <span class="hand crossed">Não disse.</span>
+          <br>
+          <span class="hand">Existe um ponto onde análise</span>
+          <span class="hand">deixa de ser útil.</span>
+          <span class="hand urgent">Aquele era um desses pontos.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — O Contato</div>
+      <div class="text-block">
+        <p>Ele se aproximou primeiro. Não foi abrupto, nem hesitante demais. Apenas direto o suficiente para que eu entendesse antes de acontecer.</p>
+        <p class="dim">Eu tive tempo de recuar.</p>
+        <p class="hl">Não recuei.</p>
+        <p>O contato foi breve, mas suficiente para interromper completamente qualquer tentativa de controle consciente. Por um instante, <span class="hl">eu simplesmente não pensei.</span> Isso não é comum.</p>
+        <p class="dim">Quando nos afastamos, levei alguns segundos a mais do que o normal para reorganizar qualquer resposta. Percebi o calor primeiro, depois a dificuldade em manter a expressão neutra. Isso foi inconveniente.</p>
+        <p>Desviei o olhar antes que ele pudesse observar completamente. Ou talvez ele tenha observado. Não tenho como confirmar. <span class="dim">Ele sorriu de qualquer forma, como se já tivesse entendido o suficiente sem precisar de resposta.</span></p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          ESTADO COGNITIVO: INTERROMPIDO :: DURAÇÃO: ~t+08s<br>
+          RESPOSTA VERBAL: AUSENTE<br>
+          CONTROLE DE EXPRESSÃO: FALHOU<br>
+          CAUSA RAIZ: NÃO IDENTIFICADA :: LOG: NÃO GERADO
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — Encerramento</div>
+      <div class="text-block">
+        <p class="dim">Enquanto voltávamos, notei algo que não consigo ignorar. Minha mente estava mais silenciosa. Não vazia, apenas menos carregada. Como se, por um curto período, eu não estivesse tentando corrigir tudo ao mesmo tempo.</p>
+        <p>Isso deveria me preocupar mais do que preocupa.</p>
+        <p class="hl">Mas, no momento, não preocupa.</p>
+        <p class="dim">E talvez esse seja exatamente o problema.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left:40%; transform:rotate(2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Eu não consegui responder imediatamente.</span>
+          <br>
+          <span class="hand">Esse registro é a primeira vez</span>
+          <span class="hand">que coloco isso em palavras.</span>
+          <br>
+          <span class="hand faded">Ainda não sei o que fazer com isso.</span>
+          <br>
+          <span class="hand urgent">Mas continuo aqui.</span>
+          <span class="hand urgent">E ele também.</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay5">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day4 -->
+
+    <!-- ══════════════ DIA 5 ══════════════ -->
+    <div id="day5" style="display:none;">
+
+      <button class="btn-back" id="btnBack5">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 1027 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ INTERVALO NÃO DOCUMENTADO</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ INTERVALO NÃO DOCUMENTADO</span>
+          <span>█ LOG DE DELEÇÃO: AUSENTE</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow5">
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum5" style="color:var(--red-bright);text-shadow:0 0 10px var(--blood)">08/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Intervalo</div>
+      <div class="text-block">
+        <p>Faz… tempo demais desde o último registro.</p>
+        <p class="dim">Eu não sei exatamente quando parei. Isso, por si só, já é um problema.</p>
+        <p>Eu comecei isso com um propósito claro: preservar consistência. Registrar padrões. Evitar depender exclusivamente de memória. E, em algum ponto, eu simplesmente… <span class="hl">deixei de escrever.</span> Não houve decisão consciente. Não houve encerramento. Só interrupção.</p>
+        <p class="dim">Eu tentei reconstruir o intervalo. Não consegui com precisão.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [ÚLTIMO REGISTRO: DIA 256] → [REGISTRO ATUAL: DIA 1027]<br>
+          INTERVALO: ~771 DIAS SEM ENTRADA :: CAUSA: NÃO DOCUMENTADA<br>
+          RECONSTRUÇÃO DE DADOS: PARCIAL :: MEMÓRIA: COMPROMETIDA<br>
+          nota: ausência de registro não implica ausência de evento
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — O Projeto</div>
+      <div class="text-block">
+        <p>Muita coisa aconteceu. O projeto evoluiu. Muito mais rápido do que eu consideraria seguro. Aquilo que começou como análise de resíduos se tornou… base. Estrutura. <span class="hl">Parte ativa de algo maior.</span></p>
+        <p class="dim">Eles estavam certos em uma coisa: havia potencial ali. Mais do que esperávamos. Isso não significa que estava sob controle. Mas ninguém mais parece considerar isso relevante.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Nós</div>
+      <div class="text-block">
+        <p>Nós continuamos trabalhando juntos. Oficialmente, agora sem qualquer questionamento. Não há mais separação clara entre o que eu faço e o que o <span class="hl">John Doe</span> faz dentro do projeto. As funções se misturaram ao longo do tempo. Em alguns momentos, é difícil determinar onde uma termina e a outra começa.</p>
+        <p class="dim">Isso deveria ser um problema. Mas funcionou.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left:50%; transform:rotate(-1deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Fora do trabalho…</span>
+          <span class="hand">também funcionou.</span>
+          <br>
+          <span class="hand faded">Não houve um ponto específico onde algo mudou.</span>
+          <span class="hand">Foi gradual o suficiente para não</span>
+          <span class="hand">chamar atenção enquanto acontecia.</span>
+          <br>
+          <span class="hand">Quando percebi, já não havia diferença</span>
+          <span class="hand">entre rotina profissional e pessoal.</span>
+          <span class="hand crossed">Ele estava presente em ambas.</span>
+          <br>
+          <span class="hand urgent">E eu não corrigi.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — O Registro</div>
+      <div class="text-block">
+        <p class="dim">Hoje… isso chega a um ponto que exige registro.</p>
+        <p class="hl" style="font-family:'Special Elite',serif; font-size:clamp(16px,3vw,20px); letter-spacing:0.1em; text-align:center; padding:12px 0;">Nós vamos nos casar.</p>
+        <p class="dim">Escrever isso deveria parecer estranho. Não parece. Isso talvez seja o detalhe mais… inconsistente de todos.</p>
+        <p>A decisão foi tomada de forma simples demais. Sem conflito. Sem análise extensa. Sem resistência. Eu tentei, por hábito, aplicar lógica ao processo.</p>
+        <p class="dim">Não encontrei falha. O que não significa que não exista.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — A Cerimônia</div>
+      <div class="text-block">
+        <p>A cerimônia foi pequena. Poucas pessoas. Ambiente controlado. Nada que justificasse complexidade.</p>
+        <p class="dim">Ele estava… normal.</p>
+        <p class="dim">Isso não deveria ser algo que eu preciso registrar. Mas estou registrando.</p>
+      </div>
+
+      <div class="attach-wrap">
+        <div class="attach-label">▸ Anexo — Registro Visual</div>
+        <div class="attach-frame" style="transform: rotate(-0.8deg);">
+          <img src="jane-noiva.jpg" alt="Registro — cerimônia">
+          <div class="attach-cap">— o dia que mudou minha vida.</div>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — A Hesitação</div>
+      <div class="text-block">
+        <p>Houve um momento durante a cerimônia em que ele demorou a responder. Não foi perceptível para os outros. Provavelmente nem para ele.</p>
+        <p class="dim">Mas eu notei.</p>
+        <p>Uma fração de segundo. Talvez menos. <span class="hl">Tempo suficiente para quebrar um padrão.</span></p>
+        <p>Ele disse meu nome depois disso. Corretamente. Sem erro. Sem hesitação aparente.</p>
+        <p class="dim">E, ainda assim… algo ficou desalinhado.</p>
+        <p>Eu não mencionei. Não parecia necessário. Ou talvez eu tenha decidido que <span class="hl">não queria testar aquilo naquele momento.</span></p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left:30%; transform:rotate(1.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">O restante ocorreu como esperado.</span>
+          <span class="hand faded">Sem falhas visíveis.</span>
+          <span class="hand faded">Sem inconsistências confirmadas.</span>
+          <br>
+          <span class="hand">Quando terminou, ele sorriu.</span>
+          <span class="hand">Do mesmo jeito de antes.</span>
+          <br>
+          <span class="hand">Eu respondi.</span>
+          <br>
+          <span class="hand faded">Isso deveria ser suficiente.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 07 — Encerramento</div>
+      <div class="text-block">
+        <p>Existe uma diferença entre ausência de erro visível… e estabilidade real.</p>
+        <p class="dim">Eu não sei qual das duas coisas isso foi.</p>
+        <p>E o fato de eu não saber… depois de tudo… <span class="hl">é algo que eu não consigo ignorar completamente.</span></p>
+        <p class="dim">Mesmo agora.</p>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay6">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day5 -->
+
+    <!-- ══════════════ DIA 6 ══════════════ -->
+    <div id="day6" style="display:none;">
+
+      <button class="btn-back" id="btnBack6">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 1213 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ PADRÃO DETECTADO</span>
+          <span>█ ORIGEM: DESCONHECIDA</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE: COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+          <span>⚠ ARQUIVO NÃO CATALOGADO</span>
+          <span>◈ PADRÃO DETECTADO</span>
+          <span>█ ORIGEM: DESCONHECIDA</span>
+          <span>⚠ NENHUM USUÁRIO AUTENTICADO</span>
+          <span>◈ INTEGRIDADE: COMPROMETIDA</span>
+          <span>█ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow6">
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum6" style="color:var(--red-bright);text-shadow:0 0 10px var(--blood)">08/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Estabilidade</div>
+      <div class="text-block">
+        <p>A rotina estabilizou.</p>
+        <p class="dim">Isso deveria ser positivo.</p>
+        <p>Depois do que aconteceu nos últimos ciclos, alcançar qualquer forma de consistência seria considerado progresso. O projeto continua ativo, o sistema permanece funcional dentro dos parâmetros esperados e, fora disso, não houve incidentes relevantes registrados oficialmente. Tudo indica que atingimos um ponto de equilíbrio.</p>
+        <p class="dim">Mas estabilidade, nesse contexto, não significa ausência de erro.</p>
+        <p>Significa apenas que o erro <span class="hl">deixou de ser evidente.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — Padrão</div>
+      <div class="text-block">
+        <p>Nós continuamos trabalhando juntos.</p>
+        <p class="dim">Não há mais distinção entre funções. Isso já não é novidade. O que mudou é a previsibilidade. Antes, cada dia apresentava alguma variação inesperada. Agora, os padrões se repetem com precisão quase…</p>
+        <p><span class="hl">confortável.</span></p>
+        <p class="dim">Horários, tarefas, interações. Tudo ocorre como deveria.</p>
+        <p>Talvez até melhor do que deveria.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 55%; transform: rotate(-1.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Confortável.</span>
+          <span class="hand faded">Essa palavra ficou.</span>
+          <span class="hand">Não deveria ser confortável.</span>
+          <span class="hand">Deveria ser… <span class="underln">verificável</span>.</span>
+          <br>
+          <span class="hand faded">A diferença importa.</span>
+          <span class="hand crossed">Mas ultimamente</span>
+          <span class="hand crossed">tem sido difícil separar.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Consistência</div>
+      <div class="text-block">
+        <p>Ele também está… consistente.</p>
+        <p class="dim">Essa é a palavra mais adequada.</p>
+        <p>O John Doe não apresenta mais as pequenas falhas que eu registrei anteriormente. Nenhuma hesitação perceptível. Nenhum atraso de resposta. Nenhuma inconsistência direta em comportamento ou linguagem. Se eu me baseasse apenas em observação superficial, diria que qualquer anomalia anterior foi resolvida.</p>
+        <p class="dim">Ou irrelevante.</p>
+        <p>Mas eu não me baseio em observação superficial.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [PADRÃO ESTÁVEL — CICLOS: 186] → [VARIAÇÃO REGISTRADA: 0.0%]<br>
+          CONSISTÊNCIA ACIMA DO PARÂMETRO ESPERADO :: CAUSA: NÃO IDENTIFICADA<br>
+          nota: estabilidade perfeita não é um estado natural de sistemas complexos
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — Ausência</div>
+      <div class="text-block">
+        <p>Existe algo faltando.</p>
+        <p class="dim">Não é algo que possa ser apontado diretamente. Não é uma ação específica, nem um erro claro.</p>
+        <p>É… ausência.</p>
+        <p class="dim">Percebi isso inicialmente em conversas simples. Assuntos cotidianos, sem importância técnica. Ele responde normalmente, mantém o fluxo, reage de forma adequada. Mas, ocasionalmente, há momentos em que a resposta vem… <span class="hl">completa demais.</span></p>
+        <p class="dim">Como se não houvesse nada além daquilo.</p>
+        <p>Sem continuidade.</p>
+        <p class="dim">Sem variação.</p>
+        <p>Sem… profundidade.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Tentei nomear o que sinto.</span>
+          <span class="hand faded">Não é desconfiança.</span>
+          <span class="hand faded">Não ainda.</span>
+          <br>
+          <span class="hand">É como olhar pra uma janela</span>
+          <span class="hand">e perceber que o reflexo</span>
+          <span class="hand urgent">não está mais sincronizado.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — Teste</div>
+      <div class="text-block">
+        <p>Eu tentei testar isso de forma indireta.</p>
+        <p class="dim">Introduzi pequenas inconsistências em conversas, esperando que ele corrigisse, questionasse ou demonstrasse dúvida. Na maioria das vezes, ele respondeu de forma coerente. Mas, em alguns casos, simplesmente aceitou.</p>
+        <p>Não como alguém distraído.</p>
+        <p class="dim"><span class="hl">Como alguém que não percebeu a necessidade de questionar.</span></p>
+        <p>Isso não é comportamento padrão.</p>
+        <p class="dim">Ele tem saído sozinho com mais frequência. Sempre em horários semelhantes. Sempre com a mesma explicação genérica.</p>
+        <p>"Vou resolver algo rápido."</p>
+        <p class="dim">Eu não pressionei.</p>
+        <p>Ainda.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 30%; transform: rotate(2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Ele disse "já resolvi".</span>
+          <span class="hand faded">Não perguntei o quê.</span>
+          <span class="hand faded">Não porque não queria saber.</span>
+          <br>
+          <span class="hand">Porque percebi que mesmo</span>
+          <span class="hand">se eu perguntasse,</span>
+          <span class="hand crossed">a resposta não seria suficiente.</span>
+          <br>
+          <span class="hand urgent">Isso é novo.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — O Intervalo</div>
+      <div class="text-block">
+        <p>Hoje, no entanto, houve um detalhe que não consigo ignorar.</p>
+        <p class="dim">Ele saiu mais cedo do trabalho, algo que raramente faz sem motivo claro. Disse que precisava ajustar algo fora do sistema principal. Não especificou o quê. Eu considerei acompanhar, mas decidi observar em vez disso.</p>
+        <p>Esperei.</p>
+        <p class="dim">Ele demorou mais do que o esperado.</p>
+        <p>Quando voltou, não havia sinal visível de alteração. Nenhum comportamento fora do padrão. Nenhuma inconsistência direta.</p>
+        <p class="dim">Mas havia um intervalo.</p>
+        <p>Um espaço de tempo que não se conecta com nenhuma informação fornecida.</p>
+        <p class="dim">Eu tentei reconstruir mentalmente.</p>
+        <p>Não consegui.</p>
+        <p class="dim">Quando perguntei, a resposta foi simples.</p>
+        <blockquote style="border-left:2px solid #330000; padding-left:16px; margin:16px 0; color:#883333; font-style:italic;">"Já resolvi."</blockquote>
+        <p class="dim">Sem detalhe. Sem explicação. Sem necessidade de continuar.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [INTERVALO NÃO DOCUMENTADO: ~2h17min] → [LOCALIZAÇÃO: DESCONHECIDA]<br>
+          LOG DE ATIVIDADE: AUSENTE :: JUSTIFICATIVA: INSUFICIENTE<br>
+          nota: a primeira ausência mensurável não é, necessariamente, a primeira ausência
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 07 — Sem Rastro</div>
+      <div class="text-block">
+        <p class="dim">Isso, por si só, não é prova de nada.</p>
+        <p>Mas é a primeira vez que a ausência é… mensurável.</p>
+        <p class="dim">Eu não sei se ele está escondendo algo. Essa não é a formulação correta.</p>
+        <p>Parece mais… como se existissem partes que simplesmente <span class="hl">não estão sendo registradas.</span></p>
+        <p class="dim">Nem por ele.</p>
+        <p class="dim">Nem por mim.</p>
+        <p>E isso é pior do que um segredo.</p>
+        <p class="dim">Porque segredos podem ser revelados.</p>
+        <p>Isso…</p>
+        <p class="dim">não deixa rastro suficiente para ser encontrado.</p>
+        <p>Vou continuar observando.</p>
+        <p class="dim">Ainda não é suficiente para concluir nada.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Eu ainda não sei o que estou procurando.</span>
+          <span class="hand faded">Ou se quero encontrar.</span>
+          <br>
+          <span class="hand">Sistemas que se recompõem</span>
+          <span class="hand">sem deixar rastro…</span>
+          <span class="hand">eu já vi isso antes.</span>
+          <br>
+          <span class="hand underln">No início.</span>
+          <br>
+          <span class="hand urgent">Ainda assim,</span>
+          <span class="hand urgent">continuo aqui.</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay7">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day6 -->
+
+    <div id="day7" style="display:none;">
+
+      <button class="btn-back" id="btnBack7">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye">◉</span>
+        <div class="site-title">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 1300 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ MANIFESTAÇÃO FÍSICA DETECTADA</span>
+          <span>◈ ORIGEM: INDETERMINADA</span>
+          <span>█ REVERSÃO: INCERTA</span>
+          <span>⚠ PONTO CRÍTICO IDENTIFICADO</span>
+          <span>◈ INTEGRIDADE: COMPROMETIDA</span>
+          <span>█ MONITORAMENTO MÁXIMO</span>
+          <span>⚠ MANIFESTAÇÃO FÍSICA DETECTADA</span>
+          <span>◈ ORIGEM: INDETERMINADA</span>
+          <span>█ REVERSÃO: INCERTA</span>
+          <span>⚠ PONTO CRÍTICO IDENTIFICADO</span>
+          <span>◈ INTEGRIDADE: COMPROMETIDA</span>
+          <span>█ MONITORAMENTO MÁXIMO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow7">
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum7" style="color:var(--red-bright);text-shadow:0 0 14px var(--blood);animation:pulse 0.6s infinite">!!/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Reclassificação</div>
+      <div class="text-block">
+        <p>A alteração deixou de ser exclusivamente comportamental.</p>
+        <p class="dim">Até este ponto, todas as inconsistências podiam ser classificadas como cognitivas. Memória, continuidade, resposta. Mesmo com padrões irregulares, ainda era possível tratar tudo como variação interna, algo isolado dentro do próprio processo dele. Observável, mas indireto. Mensurável, mas não físico.</p>
+        <p><span class="hl">Isso não se sustenta mais.</span></p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 50%; transform: rotate(-2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Cognitivo.</span>
+          <span class="hand faded">Essa era a caixa.</span>
+          <span class="hand faded">Enquanto cabia na caixa,</span>
+          <span class="hand faded">eu conseguia observar.</span>
+          <br>
+          <span class="hand crossed">Não cabe mais.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — O Contato</div>
+      <div class="text-block">
+        <p>Hoje houve contato.</p>
+        <p class="dim">Não foi planejado como teste. Não houve preparação, nem intenção de análise direta. Foi um movimento automático, comum o suficiente para passar despercebido em qualquer outro contexto. Ele ajustou a posição ao meu lado durante uma revisão simples e encostou no meu braço.</p>
+        <p>Contato comum.</p>
+        <p class="dim">Sem relevância.</p>
+        <p>Deveria ter sido ignorado.</p>
+        <p><span class="hl">Não foi.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — A Temperatura</div>
+      <div class="text-block">
+        <p class="dim">A diferença foi imediata o suficiente para interromper completamente qualquer outra linha de pensamento.</p>
+        <p>A temperatura estava errada.</p>
+        <p class="dim">Não fria no sentido normal. Não era ausência de calor. Era… inconsistente. Como se partes diferentes da mesma superfície respondessem de forma desigual ao toque. Não havia transição suave.</p>
+        <p><span class="hl">Era fragmentado.</span></p>
+        <p class="dim">Eu não reagi imediatamente.</p>
+        <p>Mantive a posição por alguns segundos a mais do que seria natural.</p>
+        <p class="dim">O suficiente para confirmar.</p>
+        <p>Não foi impressão inicial.</p>
+        <p class="dim">Não foi variação momentânea.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [CONTATO: TÁCTIL — DURAÇÃO: ~8s] → [RESPOSTA ESPERADA: CALOR UNIFORME]<br>
+          RESULTADO: DISTRIBUIÇÃO IRREGULAR :: GRADIENTE: AUSENTE<br>
+          nota: inconsistência térmica em superfície biológica não tem causa documentada
+        </span>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Fragmentado.</span>
+          <span class="hand faded">Como mosaico.</span>
+          <span class="hand faded">Peças que não se tocam</span>
+          <span class="hand faded">mas fingem que sim.</span>
+          <br>
+          <span class="hand urgent">Eu senti.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — Segunda Vez</div>
+      <div class="text-block">
+        <p>Eu toquei novamente.</p>
+        <p class="dim">Dessa vez de forma intencional.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — Ausência de Reação</div>
+      <div class="text-block">
+        <p class="dim">Ele não reagiu.</p>
+        <br>
+        <p>Nenhuma alteração de postura.</p>
+        <p class="dim">Nenhuma retirada.</p>
+        <p>Nenhum comentário.</p>
+        <br>
+        <p class="dim">Como se não houvesse motivo para reagir.</p>
+        <br>
+        <p>Passei os dedos levemente pela mesma área.</p>
+        <p class="dim">A textura não correspondia ao esperado.</p>
+        <p>Não era irregular ao ponto de ser visível.</p>
+        <p class="dim"><span class="hl">Mas não era uniforme.</span></p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 65%; transform: rotate(1.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Ele não retirou a mão.</span>
+          <span class="hand faded">Não desviou o olhar.</span>
+          <span class="hand faded">Não pausou a fala.</span>
+          <br>
+          <span class="hand">Nada.</span>
+          <br>
+          <span class="hand crossed">Como se não houvesse</span>
+          <span class="hand crossed">ninguém tocando.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — Resistência</div>
+      <div class="text-block">
+        <p>Havia resistência em pontos específicos.</p>
+        <p class="dim">Como se a superfície não fosse contínua.</p>
+        <br>
+        <p>Eu afastei a mão.</p>
+        <br>
+        <p class="dim">Ele continuou falando.</p>
+        <p>Explicando algo relacionado ao sistema, mantendo coerência completa, sem qualquer sinal de distração ou desconforto. A fala estava normal. O comportamento, estável.</p>
+        <p class="dim">Nenhuma quebra.</p>
+        <br>
+        <p>Como se nada tivesse acontecido.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [RESPOSTA MOTORA AO ESTÍMULO TÁCTIL: AUSENTE] → [CONTINUIDADE VERBAL: MANTIDA]<br>
+          PADRÃO: DISSOCIAÇÃO ENTRE SUPERFÍCIE E PROCESSAMENTO CENTRAL<br>
+          nota: se ele não registra o toque, a questão não é física — é mais profunda
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 07 — O que Isso Elimina</div>
+      <div class="text-block">
+        <p class="dim">Observei por mais alguns minutos.</p>
+        <p>Nenhuma mudança visível.</p>
+        <p class="dim">Nenhuma evidência externa.</p>
+        <br>
+        <p>Se eu não tivesse sentido…</p>
+        <p class="dim">não haveria motivo para questionar.</p>
+        <br>
+        <p>Isso não está limitado à memória.</p>
+        <br>
+        <p><span class="hl">Existe uma manifestação física.</span></p>
+        <br>
+        <p class="dim">E o mais preocupante não é a alteração em si.</p>
+        <br>
+        <p>É o fato de que ele não percebe.</p>
+        <p class="dim">Ou…</p>
+        <p>não registra.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Não percebe</span>
+          <span class="hand">ou não registra.</span>
+          <br>
+          <span class="hand faded">Eu precisava saber</span>
+          <span class="hand faded">qual dos dois.</span>
+          <br>
+          <span class="hand faded">Mas percebi que</span>
+          <span class="hand crossed">a resposta</span>
+          <span class="hand crossed">não muda o que eu senti.</span>
+          <br>
+          <span class="hand urgent">Ambos são ruins.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 08 — Encerramento</div>
+      <div class="text-block">
+        <p class="dim">Vou precisar ajustar os testes.</p>
+        <p>Observação indireta não é mais suficiente.</p>
+        <br>
+        <p class="dim">Se isso continuar evoluindo…</p>
+        <p>o ponto de reversão pode deixar de existir.</p>
+        <br>
+        <p class="dim">E eu ainda não determinei onde ele está.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 40%; transform: rotate(-1deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Ponto de reversão.</span>
+          <span class="hand faded">Eu uso essa expressão</span>
+          <span class="hand faded">como se ainda acreditasse</span>
+          <span class="hand faded">que ele existe.</span>
+          <br>
+          <span class="hand crossed">E se não existir mais?</span>
+          <br>
+          <span class="hand urgent">E se nunca existiu?</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay1312">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day7 -->
+
+    <!-- ══════════════ DIA 1312 ══════════════ -->
+    <div id="day1312" style="display:none;">
+
+      <button class="btn-back" id="btnBack1312">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye" style="animation: eyePulse 2s ease-in-out infinite, headerGlitch1312 7s infinite;">◉</span>
+        <div class="site-title" style="animation: titleGlitch 6s infinite;">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 1312 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ ESTIMULAÇÃO DIRETA APLICADA</span>
+          <span>◈ REAÇÃO CONFIRMADA</span>
+          <span>█ SUPERFÍCIE: INSTÁVEL</span>
+          <span>⚠ CONTINUIDADE ARTIFICIAL</span>
+          <span>◈ EXPOSIÇÃO: IMINENTE</span>
+          <span>█ MONITORAMENTO MÁXIMO</span>
+          <span>⚠ ESTIMULAÇÃO DIRETA APLICADA</span>
+          <span>◈ REAÇÃO CONFIRMADA</span>
+          <span>█ SUPERFÍCIE: INSTÁVEL</span>
+          <span>⚠ CONTINUIDADE ARTIFICIAL</span>
+          <span>◈ EXPOSIÇÃO: IMINENTE</span>
+          <span>█ MONITORAMENTO MÁXIMO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow1312">
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 12px var(--red-bright), 0 0 24px var(--blood);"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum1312" style="color:var(--red-bright);text-shadow:0 0 16px var(--blood);font-size:26px;">08/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Limite</div>
+      <div class="text-block">
+        <p>Observação passiva deixou de ser suficiente.</p>
+        <p class="dim">As alterações já ultrapassaram o limite do comportamento. A manifestação física, mesmo que sutil, confirma que o problema não está restrito a processos internos. Ainda assim, sem resposta mensurável sob condições controladas, qualquer conclusão continua incompleta.</p>
+        <p><span class="hl">Eu preciso de reação.</span></p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 45%; transform: rotate(-2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand urgent">Hoje eu forcei uma.</span>
+          <br>
+          <span class="hand faded">Nada extremo.</span>
+          <span class="hand faded">Sem intervenção direta no sistema.</span>
+          <span class="hand">Apenas estímulo físico controlado.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — Condições</div>
+      <div class="text-block">
+        <p>O John Doe estava em repouso relativo durante um intervalo. Nenhuma atividade crítica, nenhum fator externo interferindo. Ambiente estável o suficiente para isolar variáveis.</p>
+        <p class="dim">Eu iniciei contato novamente.</p>
+        <p><span class="hl">Dessa vez, não superficial.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — O Estímulo</div>
+      <div class="text-block">
+        <p>Segurei o braço dele.</p>
+        <p class="dim">A diferença foi imediata. A mesma inconsistência de antes, mas mais clara. A temperatura não se distribuía de forma uniforme. Havia pontos mais densos, outros praticamente neutros. A sensação não correspondia a tecido normal.</p>
+        <p>Eu aumentei a pressão.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [ESTÍMULO TÁCTIL — PRESSÃO: MODERADA → AUMENTADA] :: [DURAÇÃO: ~12s]<br>
+          DISTRIBUIÇÃO TÉRMICA: IRREGULAR :: PONTOS NEUTROS: 3 IDENTIFICADOS<br>
+          TEXTURA: INCONSISTENTE COM TECIDO BIOLÓGICO PADRÃO<br>
+          nota: a superfície não responde ao estímulo como deveria — mas responde
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — A Reação</div>
+      <div class="text-block">
+        <p>Ele reagiu.</p>
+        <br>
+        <p class="dim">Não como esperado.</p>
+        <br>
+        <p>Ele não recuou.</p>
+        <p class="dim">Não questionou.</p>
+        <p>Não demonstrou desconforto.</p>
+        <br>
+        <p><span class="hl">Ele parou.</span></p>
+        <br>
+        <p class="dim">A fala foi interrompida no meio. Sem conclusão. Sem transição.</p>
+        <br>
+        <p>Silêncio.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Eu mantive o contato.</span>
+          <br>
+          <span class="hand faded">Por alguns segundos,</span>
+          <span class="hand faded">nada aconteceu.</span>
+          <br>
+          <span class="hand">Então…</span>
+          <br>
+          <span class="hand urgent">houve variação.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — A Variação</div>
+      <div class="text-block">
+        <p class="dim">Não visível de imediato.</p>
+        <p>Mas perceptível.</p>
+        <br>
+        <p class="dim">A superfície sob minha mão… <span class="hl">mudou.</span></p>
+        <br>
+        <p>Não de forma completa.</p>
+        <p class="dim">Não o suficiente para ser claramente observável.</p>
+        <br>
+        <p>Mas o suficiente para confirmar que não era estática.</p>
+        <br>
+        <p class="dim">Como se algo abaixo da pele tivesse… deslocado.</p>
+        <br>
+        <p>A textura deixou de ser consistente. Por uma fração de segundo, houve resistência irregular. <span class="hl">Como se a estrutura não estivesse fixa.</span></p>
+      </div>
+
+      <div class="corrupt" style="border-color:#550000; box-shadow: 0 0 18px rgba(139,0,0,0.25), inset 0 0 20px rgba(0,0,0,0.6);">
+        <span class="corrupt-text" style="animation: corruptFlicker 3s infinite;">
+          [SUPERFÍCIE: DESLOCAMENTO SUB-DÉRMICO DETECTADO :: DURAÇÃO: ~0.4s]<br>
+          ESTRUTURA: NÃO FIXA :: RESISTÊNCIA: IRREGULAR<br>
+          01001000 01010101 01001101 01000001 01001110 00111111<br>
+          nota: algo abaixo da superfície não está onde deveria estar
+        </span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — Confirmação</div>
+      <div class="text-block">
+        <p>Eu observei o ponto diretamente.</p>
+        <br>
+        <p class="dim">Não vi alteração clara.</p>
+        <br>
+        <p class="hl">Mas senti.</p>
+        <br>
+        <p class="dim">E isso foi suficiente.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 35%; transform: rotate(2.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Afrouxei o contato.</span>
+          <br>
+          <span class="hand faded">No mesmo instante, ele retomou.</span>
+          <span class="hand faded">Continuou a frase exatamente</span>
+          <span class="hand faded">de onde havia parado.</span>
+          <span class="hand faded">Sem corrigir a interrupção.</span>
+          <span class="hand faded">Sem reconhecer a pausa.</span>
+          <br>
+          <span class="hand crossed">Como se o intervalo não tivesse existido.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 07 — Classificação</div>
+      <div class="text-block">
+        <p><span class="hl" style="font-family:'Special Elite',serif; font-size:clamp(15px,2.5vw,18px); letter-spacing:0.08em;">Isso não é comportamento humano.</span></p>
+        <br>
+        <p class="dim">Isso é continuidade artificial.</p>
+        <br>
+        <p>Eu não repeti o teste. Não naquele momento.</p>
+        <br>
+        <p class="dim">Mas agora há confirmação.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 08 — Próximo Passo</div>
+      <div class="text-block">
+        <p>A alteração responde a estímulo.</p>
+        <br>
+        <p class="dim">Mesmo que de forma limitada.</p>
+        <br>
+        <p>Isso significa que pode ser <span class="hl">induzida.</span></p>
+        <br>
+        <p class="dim">E, se pode ser induzida…</p>
+        <br>
+        <p>pode ser exposta.</p>
+        <br>
+        <p class="dim">Ainda não estou em um ponto onde intervenção direta seja viável. Mas estou… próxima.</p>
+        <br>
+        <p><span class="hl">E isso muda tudo.</span></p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Pode ser induzida.</span>
+          <span class="hand faded">Pode ser exposta.</span>
+          <br>
+          <span class="hand">Duas coisas que eu não</span>
+          <span class="hand">conseguia afirmar</span>
+          <span class="hand">há 12 dias.</span>
+          <br>
+          <span class="hand urgent">Agora consigo.</span>
+          <br>
+          <span class="hand" style="font-size:17px;">Vou precisar de acesso mais profundo.</span>
+          <span class="hand faded">Nível de exposição que exige protocolo.</span>
+          <span class="hand crossed">E eu não tenho autorização.</span>
+          <br>
+          <span class="hand urgent">Mas tenho evidência.</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btnNextDay1312Mini">[ PRÓXIMA ENTRADA ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day1312 -->
+
+    <!-- ══════════════ DIA 1328 ══════════════ -->
+    <div id="day1328" style="display:none;">
+
+      <button class="btn-back" id="btnBack1328">[ ← ENTRADA ANTERIOR ]</button>
+
+      <div class="site-header">
+        <span class="header-eye" style="animation: eyePulse 1.5s ease-in-out infinite;">◉</span>
+        <div class="site-title" style="animation: titleGlitch 5s infinite;">REGISTRO PESSOAL — JANE DOE</div>
+        <div class="site-sub">STATUS: NÃO AUTORIZADO &nbsp;·&nbsp; DIA 1328 &nbsp;·&nbsp; ACESSO IRRESTRITO</div>
+      </div>
+
+      <div class="warn-strip">
+        <div class="warn-strip-inner">
+          <span>⚠ INCURSÃO NÃO AUTORIZADA</span>
+          <span>◈ CAMPO: SEM SUPORTE</span>
+          <span>█ CONTAMINAÇÃO CONFIRMADA</span>
+          <span>⚠ TRANSFORMAÇÃO COMPLETA</span>
+          <span>◈ IDENTIDADE: INACESSÍVEL</span>
+          <span>█ PROTOCOLO: VIOLADO</span>
+          <span>⚠ INCURSÃO NÃO AUTORIZADA</span>
+          <span>◈ CAMPO: SEM SUPORTE</span>
+          <span>█ CONTAMINAÇÃO CONFIRMADA</span>
+          <span>⚠ TRANSFORMAÇÃO COMPLETA</span>
+          <span>◈ IDENTIDADE: INACESSÍVEL</span>
+          <span>█ PROTOCOLO: VIOLADO</span>
+        </div>
+      </div>
+
+      <div class="anomaly-meter">
+        <span class="anomaly-label">ANOMALIAS</span>
+        <div class="pips" id="pipRow1328">
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+          <div class="pip on pulse" style="background:var(--red-bright);box-shadow:0 0 10px var(--red-bright),0 0 20px var(--blood);"></div>
+        </div>
+        <span class="anomaly-num" id="anomalyNum1328" style="color:var(--red-bright);text-shadow:0 0 18px var(--blood);font-size:26px;animation:blink 0.5s step-start infinite;">!!/08</span>
+      </div>
+
+      <div class="sec-label">▸ Segmento 01 — Chegada</div>
+
+      <div class="nb-wrap">
+        <div class="tape"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand urgent">Eu cheguei atrasada.</span>
+          <br>
+          <span class="hand crossed">Isso não deveria importar.</span>
+          <br>
+          <span class="hand urgent">Mas importa.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 02 — Condições</div>
+      <div class="text-block">
+        <p>O prédio já estava… errado antes mesmo de eu entrar.</p>
+        <p class="dim">Não houve alarme. Nenhum aviso oficial. Nenhuma evacuação organizada.</p>
+        <p><span class="hl">Só silêncio.</span></p>
+        <p class="dim">E marcas.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 03 — Interior</div>
+      <div class="text-block">
+        <p>A estrutura interna não corresponde mais ao layout original. Corredores parcialmente destruídos, superfícies deformadas, partes do ambiente… <span class="hl">ausentes.</span></p>
+        <p class="dim">Não quebradas. Não removidas.</p>
+        <p>Ausentes.</p>
+        <p class="dim">Como se nunca tivessem sido concluídas.</p>
+      </div>
+
+      <div class="corrupt">
+        <span class="corrupt-text">
+          [LAYOUT ESPERADO: /sector-B/floor-02] → [LAYOUT REAL: INCOMPATÍVEL]<br>
+          CORREDORES: PARCIALMENTE DESTRUÍDOS :: SUPERFÍCIES: DEFORMADAS<br>
+          SETOR [3] :: AUSENTE :: LOG DE REMOÇÃO: &lt;NÃO EXISTE&gt;<br>
+          nota: ausência não é destruição — ausência é anterior à existência
+        </span>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Havia resíduo.</span>
+          <br>
+          <span class="hand faded">A mesma substância.</span>
+          <br>
+          <span class="hand">Espalhada.</span>
+          <br>
+          <span class="hand faded">Pelas paredes.</span>
+          <span class="hand faded">Pelo chão.</span>
+          <span class="hand faded">Pelo ar.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 04 — O Corpo</div>
+      <div class="text-block">
+        <p>Encontrei o primeiro corpo no setor secundário.</p>
+        <p class="dim">Não havia identificação imediata.</p>
+        <p>Mas não era relevante.</p>
+        <p class="dim">A causa era.</p>
+        <p>Perfuração.</p>
+        <p class="dim">Não limpa.</p>
+        <p><span class="hl">Irregular.</span></p>
+        <p class="dim">Como se a estrutura tivesse sido rasgada por algo que não segue forma definida.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 05 — O Som</div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 60%; transform: rotate(-2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Eu ouvi antes de ver.</span>
+          <br>
+          <span class="hand faded">Som inconsistente.</span>
+          <span class="hand faded">Não passos.</span>
+          <span class="hand faded">Não movimento normal.</span>
+          <br>
+          <span class="hand">Algo entre arrasto…</span>
+          <span class="hand urgent">e execução.</span>
+        </div>
+      </div>
+
+      <div class="sec-label">▸ Segmento 06 — John Doe</div>
+      <div class="text-block">
+        <p>O John Doe não estava… transformando.</p>
+        <p class="dim"><span class="hl">Ele já estava.</span></p>
+        <p>A estrutura corporal não correspondia mais ao padrão original. O braço direito completamente deformado, alongado além do limite natural, coberto por aquela mesma substância que eu já havia identificado antes. Não como superfície.</p>
+        <p class="dim">Como composição.</p>
+        <p>O outro braço… parcialmente preservado. Mas não intacto.</p>
+        <p>A face…</p>
+        <p class="dim">Eu não consegui registrar completamente.</p>
+        <p>Um dos olhos estava errado. Não funcional. <span class="hl">Mas ativo.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 07 — O Nome</div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 35%; transform: rotate(2deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand faded">Ele não me viu imediatamente.</span>
+          <span class="hand faded">Isso me deu tempo.</span>
+          <br>
+          <span class="hand">Tempo suficiente para fazer algo que,</span>
+          <span class="hand">em retrospecto,</span>
+          <span class="hand crossed">não deveria ter feito.</span>
+          <br>
+          <span class="hand urgent">Eu disse o nome dele.</span>
+          <br>
+          <span class="hand faded">Não alto. Não em pânico.</span>
+          <span class="hand">Normal.</span>
+          <span class="hand underln">Como sempre fiz.</span>
+          <br>
+          <span class="hand urgent">Ele parou.</span>
+        </div>
+      </div>
+
+      <div class="text-block">
+        <p>Por um momento… houve silêncio.</p>
+        <p class="dim">Ele virou.</p>
+        <p>E olhou diretamente para mim.</p>
+        <p class="dim">Sem hesitação. Sem reconhecimento. <span class="hl">Sem erro.</span></p>
+        <p>A ausência foi completa.</p>
+        <p class="dim">Não houve dúvida. Não houve tentativa.</p>
+        <p>Nada.</p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 08 — O Avanço</div>
+      <div class="text-block">
+        <p>Eu tentei corrigir. Disse novamente. Mais claro. Mais direto.</p>
+        <p style="font-family:'Special Elite',serif; font-size:clamp(16px,3vw,20px); letter-spacing:0.15em; color:#553333; padding:8px 0;">"John."</p>
+        <p class="dim">Nenhuma resposta. Nenhuma mudança.</p>
+        <p>Ele avançou.</p>
+        <p class="dim">Não como alguém que decidiu atacar.</p>
+        <p><span class="hl">Como algo que executa.</span></p>
+        <p class="dim">Movimento direto. Sem variação. Sem intenção visível.</p>
+      </div>
+
+      <div class="nb-wrap">
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand">Eu recuei.</span>
+          <span class="hand faded">Não rápido. Mas suficiente.</span>
+          <br>
+          <span class="hand">O primeiro impacto não foi direcionado.</span>
+          <span class="hand">A estrutura ao lado de mim foi destruída.</span>
+          <br>
+          <span class="hand crossed">Não por força bruta.</span>
+          <br>
+          <span class="hand urgent">Por desintegração.</span>
+          <br>
+          <span class="hand faded">Contato breve. Resultado completo.</span>
+        </div>
+      </div>
+
+      <div class="corrupt" style="border-color:#550000; box-shadow: 0 0 18px rgba(139,0,0,0.25), inset 0 0 20px rgba(0,0,0,0.6);">
+        <span class="corrupt-text" style="animation: corruptFlicker 3s infinite;">
+          [MATERIAL: ESTRUTURAL — CONTATO: ~0.2s] → [RESULTADO: DESTRUIÇÃO COMPLETA]<br>
+          MECANISMO: DESINTEGRAÇÃO :: FORÇA: NÃO MENSURÁVEL<br>
+          FORMA: INDEFINIDA :: PADRÃO: AUSENTE<br>
+          isso não é humano — isso não segue regras que eu conheço
+        </span>
+      </div>
+
+      <div class="text-block">
+        <p class="dim">Eu tentei novamente.</p>
+        <p>Erro.</p>
+        <p class="dim">Não há resposta. Não há mais nada ali que responda ao nome.</p>
+        <p>Eu saí.</p>
+        <p class="dim">Não foi fuga desorganizada. Foi retirada. Controlada. Porque pânico não resolve.</p>
+        <p><span class="hl">E ele… não é mais ele.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 09 — Confirmação</div>
+      <div class="text-block">
+        <p>Agora eu tenho confirmação.</p>
+        <p class="dim">Não é perda parcial.</p>
+        <p><span class="hl" style="font-family:'Special Elite',serif; font-size:clamp(15px,2.5vw,18px); letter-spacing:0.08em;">É substituição. Completa.</span></p>
+        <p class="dim">A identidade dele não está mais acessível.</p>
+        <p>Mas isso não significa que foi destruída.</p>
+        <p class="dim">Significa que está… inacessível.</p>
+        <p>E se está inacessível…</p>
+        <p class="dim"><span class="hl">então existe.</span></p>
+      </div>
+
+      <div class="sec-label">▸ Segmento 10 — Encerramento</div>
+
+      <div class="nb-wrap">
+        <div class="tape" style="left: 45%; transform: rotate(-1.5deg) translateX(-50%);"></div>
+        <div class="nb-page">
+          <div class="fold"></div>
+          <span class="hand crossed">Eu não vou encerrar isso.</span>
+          <span class="hand crossed">Eu não vou aceitar isso como estado final.</span>
+          <br>
+          <span class="hand">Se existe um processo que fez isso…</span>
+          <span class="hand urgent">então existe um processo que pode reverter.</span>
+          <br>
+          <span class="hand">Eu vou encontrar.</span>
+          <br>
+          <span class="hand faded">Mesmo que isso exija mais do que observação.</span>
+          <span class="hand faded">Mesmo que isso exija…</span>
+          <span class="hand urgent">intervenção direta.</span>
+          <br>
+          <span class="hand">Eu não perdi ele.</span>
+          <span class="hand urgent">Ainda não.</span>
+        </div>
+      </div>
+
+      <div class="attach-wrap">
+        <div class="attach-label">▸ Anexo — Registro Visual</div>
+        <div class="attach-frame" style="transform: rotate(-1.8deg);">
+          <img src="john-doe-final.jpg" alt="Registro — sem identificação">
+          <div class="attach-cap">— ele. mas não mais.</div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn broken-link" id="btnNextDay1328">[ ... ]</button>
+        <button class="btn" onclick="this.textContent='ERRO: PERMISSÃO INSUFICIENTE'">[ EXPORTAR LOG ]</button>
+        <button class="btn" onclick="this.textContent='⚠ OPERAÇÃO BLOQUEADA'">[ DELETAR ARQUIVO ]</button>
+      </div>
+
+      <div class="site-footer">
+        <div>
+          SYS &gt; ARQUIVO NÃO INDEXADO<br>
+          ÚLTIMA MODIFICAÇÃO: ██/██/████ — ██:██<br>
+          ASSINATURA: <span style="color:#1a0000">████████████████████</span>
+        </div>
+        <div style="text-align:right">
+          SESSÃO ATIVA<span class="blink">▌</span><br>
+          <span style="color:#330000">NENHUM USUÁRIO AUTENTICADO</span><br>
+          <span style="color:var(--blood); font-size:9px" class="blink">◉ MONITORAMENTO ATIVO</span>
+        </div>
+      </div>
+
+    </div><!-- /day1328 -->
+
+  </div><!-- /page-wrap -->
+</div><!-- /main -->
+
+<!-- ══════════════════════════════════════
+     RHYTHM MINIGAME OVERLAY
+══════════════════════════════════════ -->
+<div id="rhythmGame">
+  <div class="ag-panel">
+    <div class="ag-eyeline">◉</div>
+    <div class="ag-title">PROTOCOLO DE SINCRONIZAÇÃO <span class="blink">▌</span></div>
+    <div class="ag-sub">NÍVEL DE ACESSO: RESTRITO</div>
+    <div class="ag-instruction">
+      MEMORIZE A SEQUÊNCIA DE ATIVAÇÃO.<br>
+      REPITA NA ORDEM EXATA PARA OBTER ACESSO.
+    </div>
+    <div class="ag-progress" id="rgProgress">RODADA 1 / 3</div>
+    <div class="ag-timer-wrap"><div id="rgTimerBar"></div></div>
+    <div class="rg-pads" id="rgPads"></div>
+    <div class="ag-msg" id="rgMsg"></div>
+    <div class="ag-cancel" onclick="closeRhythmGame()">[ CANCELAR ]</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FORSAKEN GENERATOR MINIGAME OVERLAY
+══════════════════════════════════════ -->
+<div id="generatorGame" style="position:fixed;inset:0;background:rgba(0,0,0,0.98);z-index:8100;display:none;flex-direction:column;align-items:center;justify-content:center;">
+  <div class="gen-panel">
+    <div class="gen-scanline"></div>
+
+    <!-- Skill check overlay (inside the panel, absolute) -->
+    <div id="genSkillCheck">
+      <div>
+        <div class="gen-sc-ring" id="genScRing">
+          <svg class="gen-sc-svg" viewBox="0 0 140 140">
+            <circle class="gen-sc-track" cx="70" cy="70" r="56"/>
+            <circle class="gen-sc-zone" id="genScZone" cx="70" cy="70" r="56"
+                    stroke-dasharray="0 352" stroke-dashoffset="0"/>
+          </svg>
+          <div class="gen-sc-needle" id="genScNeedle"></div>
+        </div>
+        <div class="gen-sc-label">PRESSIONE AGORA</div>
+      </div>
+    </div>
+
+    <div class="ag-eyeline">⚙</div>
+    <div class="ag-title">PROTOCOLO DE REINICIALIZAÇÃO <span class="blink">▌</span></div>
+    <div class="ag-sub">NÍVEL DE ACESSO: RESTRITO — GERADOR OFFLINE</div>
+    <div class="ag-instruction">
+      MANTENHA PRESSIONADO PARA ATIVAR O GERADOR.<br>
+      RESPONDA AO CHECK DE CONTROLE QUANDO SURGIR.<br>
+      FALHAR CAUSA RETROCESSO DE CARGA.
+    </div>
+
+    <div class="gen-stages" id="genStages">
+      <div class="gen-stage-dot" id="genDot0"></div>
+      <div class="gen-stage-dot" id="genDot1"></div>
+      <div class="gen-stage-dot" id="genDot2"></div>
+    </div>
+
+    <div class="gen-core-wrap" id="genCoreWrap">
+      <svg class="gen-core-svg" viewBox="0 0 160 160">
+        <circle class="gen-ring-bg" cx="80" cy="80" r="65"/>
+        <circle class="gen-ring-fill" id="genRingFill" cx="80" cy="80" r="65"/>
+      </svg>
+      <div class="gen-core-btn" id="genCoreBtn">
+        <span class="gen-core-icon">⚡</span>
+        <span class="gen-core-label">SEGURAR</span>
+      </div>
+    </div>
+
+    <div class="ag-progress" id="genProgress">ESTÁGIO 1 / 3</div>
+    <div class="ag-timer-wrap"><div id="genTimerBar" style="height:100%;background:var(--blood);width:0%;transition:width 0.12s linear;"></div></div>
+    <div class="ag-msg" id="genMsg"></div>
+    <div class="ag-cancel" onclick="closeGeneratorGame()">[ CANCELAR ]</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     VHS SEQUENCE OVERLAY
+══════════════════════════════════════ -->
+<div id="vhsSequence" aria-hidden="true">
+  <video id="vhsVideo" playsinline preload="auto">
+    <source src="broken-sequence.mp4" type="video/mp4">
+  </video>
+  <div class="vhs-blackout" id="vhsBlackout"></div>
+  <div class="vhs-message" id="vhsMessage">Você Não Deveria Estar Aqui...</div>
+</div>
+
+<!-- ══════════════════════════════════════
+     CRASH OVERLAY
+══════════════════════════════════════ -->
+<div id="crashOverlay">
+  <canvas id="crashCanvas"></canvas>
+  <div id="crashFlashLayer"></div>
+  <div class="crash-tear"></div>
+  <div class="crash-content">
+    <div class="crash-code" id="crashCode">
+      ERR :: 0xDEAD4F1A :: HEAP OVERFLOW<br>
+      STACK TRACE: fn_███████ → fn_███████ → fn_███████<br>
+      LAST KNOWN STATE: UNSTABLE<br>
+      ████████████████████████████████████████
+    </div>
+    <div class="crash-title" id="crashTitleEl">FALHA CRÍTICA</div>
+    <div class="crash-sub">Sistema corrompido — recuperação em andamento</div>
+    <div class="crash-console-hint">▸ ABRA O CONSOLE PARA DIAGNÓSTICO COMPLETO ◂</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PASSWORD OVERLAY
+══════════════════════════════════════ -->
+<div id="pwOverlay" role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+  <div class="pw-box">
+    <div class="pw-bar">
+      <span>SEGURANÇA <span class="blink">▌</span></span>
+      <span>ERR · 0x5EC3</span>
+    </div>
+    <div class="pw-body">
+      <span class="pw-icon">🔒</span>
+      <div class="pw-title" id="pwTitle">ACESSO CRIPTOGRAFADO</div>
+      <div class="pw-msg">Por motivos de <span style="color:var(--red-bright)">segurança e criptografia</span>, você perdeu o acesso a esta entrada.</div>
+      <div class="pw-msg small">INSIRA A SENHA PARA CONTINUAR</div>
+    </div>
+    <div class="pw-input-row">
+      <input type="text" class="pw-input" id="pwInput" placeholder="████████" autocomplete="off" spellcheck="false">
+      <button class="pw-submit" id="pwSubmitBtn">[ OK ]</button>
+    </div>
+    <div class="pw-error-count" id="pwErrCount"></div>
+    <div class="pw-hint" id="pwHint">
+      ⚠ DICA — "O nome dele era <span style="color:var(--red-bright)">████</span>. Estava no Segmento 05 do registro anterior. Verifique o <span style="color:var(--red-bright)">Anexo</span>."
+    </div>
+    <div class="pw-actions">
+      <button class="pw-cancel" id="pwCancelBtn">[ CANCELAR ]</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════
+   BINARY RAIN
+══════════════════════════════════════ */
+(function() {
+  const canvas = document.getElementById('binaryCanvas');
+  const ctx = canvas.getContext('2d');
+  let cols, drops;
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols  = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(0).map(() => Math.random() * -canvas.height / 18);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+
+  function drawRain() {
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drops.forEach((y, i) => {
+      const char  = Math.random() > 0.5 ? '1' : '0';
+      const alpha = 0.15 + Math.random() * 0.7;
+      if (Math.random() > 0.92) {
+        ctx.fillStyle = `rgba(255,26,26,${alpha})`;
+        ctx.font = `bold 14px Courier New`;
+      } else {
+        ctx.fillStyle = `rgba(139,0,0,${alpha * 0.7})`;
+        ctx.font = `12px Courier New`;
+      }
+      ctx.fillText(char, i * 18, y * 18);
+      if (y * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      else drops[i] += 0.5 + Math.random() * 0.8;
+    });
+  }
+
+  setInterval(drawRain, 40);
+})();
+
+/* ══════════════════════════════════════
+   REFS
+══════════════════════════════════════ */
+const introEl        = document.getElementById('intro');
+const bootLog        = document.getElementById('bootLog');
+const mainEl         = document.getElementById('main');
+const flashEl        = document.getElementById('flash');
+const bloodDrip      = document.getElementById('bloodDrip');
+const confirmOverlay = document.getElementById('confirmOverlay');
+const day1El         = document.getElementById('day1');
+const day2El         = document.getElementById('day2');
+const day3El         = document.getElementById('day3');
+const day4El         = document.getElementById('day4');
+const day5El         = document.getElementById('day5');
+const day6El         = document.getElementById('day6');
+const day7El         = document.getElementById('day7');
+const day1312El      = document.getElementById('day1312');
+const day1328El      = document.getElementById('day1328');
+const pwOverlay      = document.getElementById('pwOverlay');
+const pwInput        = document.getElementById('pwInput');
+const pwHint         = document.getElementById('pwHint');
+const pwErrCount     = document.getElementById('pwErrCount');
+const vhsSequence    = document.getElementById('vhsSequence');
+const vhsVideo       = document.getElementById('vhsVideo');
+const vhsBlackout    = document.getElementById('vhsBlackout');
+const vhsMessage     = document.getElementById('vhsMessage');
+
+/* ══════════════════════════════════════
+   BOOT SEQUENCE
+══════════════════════════════════════ */
+const bootScript = [
+  [200,  'INICIANDO SEQUÊNCIA DE ACESSO...', 'dim'],
+  [700,  'IDENTIFICANDO CREDENCIAIS...', 'dim'],
+  [900,  '> TENTATIVA 1/5 ——————————————————', 'ok'],
+  [1100, 'VERIFICANDO PERMISSÕES... [██████░░░░] 60%', 'dim'],
+  [600,  '!! ACESSO NEGADO — CREDENCIAIS INVÁLIDAS', 'err'],
+  [400,  '', 'dim'],
+  [300,  '> TENTATIVA 2/5 ——————————————————', 'ok'],
+  [800,  'FORÇANDO ENTRADA NO NODO SECUNDÁRIO...', 'dim'],
+  [700,  'BYPASSANDO AUTENTICAÇÃO... [████░░░░░░] 40%', 'dim'],
+  [500,  '!! FALHA — PROTOCOLO DE SEGURANÇA ATIVO', 'err'],
+  [400,  '', 'dim'],
+  [300,  '> TENTATIVA 3/5 ——————————————————', 'ok'],
+  [600,  'INJETANDO TOKEN DE SESSÃO EXPIRADO...', 'dim'],
+  [800,  'ESCALONANDO PRIVILÉGIOS... [███████░░░] 70%', 'dim'],
+  [400,  'APLICANDO PATCH DE CONTORNO...', 'dim'],
+  [600,  '!! ERRO CRÍTICO — FIREWALL REATIVADO', 'err'],
+  [300,  '!! TENTATIVA REGISTRADA — IP MASCARADO', 'warn'],
+  [400,  '', 'dim'],
+  [300,  '> TENTATIVA 4/5 ——————————————————', 'ok'],
+  [500,  'REESCREVENDO CABEÇALHO DE SESSÃO...', 'dim'],
+  [600,  'ACESSANDO PORTA 0x4F1A...', 'dim'],
+  [900,  'VERIFICANDO... [█████████░] 90%', 'dim'],
+  [300,  'VERIFICANDO... [██████████] 100%', 'dim'],
+  [200,  '!! TIMEOUT — CONEXÃO RECUSADA PELO HOST', 'err'],
+  [400,  '', 'dim'],
+  [300,  '> TENTATIVA 5/5 ——————————————————', 'ok'],
+  [700,  'EXPLORANDO VETOR ALTERNATIVO...', 'dim'],
+  [600,  'ARQUIVO DETECTADO: /personal/JD/log_01', 'warn'],
+  [500,  'ARQUIVO STATUS: NÃO AUTORIZADO / NÃO INDEXADO', 'warn'],
+  [800,  'FORÇANDO LEITURA DIRETA DO SETOR...', 'dim'],
+  [1000, '[█████████████████████████] 100%', 'dim'],
+  [500,  '', 'dim'],
+  [200,  '▓▓▓ ACESSO OBTIDO ▓▓▓', 'final'],
+];
+
+let totalDelay = 0;
+
+bootScript.forEach(([delay, text, cls]) => {
+  totalDelay += delay;
+  setTimeout(() => {
+    const line = document.createElement('span');
+    line.className = `boot-line ${cls}`;
+    line.textContent = text || '\u00A0';
+    line.style.animation = `reveal 0.01s forwards`;
+    bootLog.appendChild(line);
+    bootLog.scrollTop = bootLog.scrollHeight;
+    if (cls === 'err') {
+      flashEl.style.opacity = '0.15';
+      setTimeout(() => flashEl.style.opacity = '0', 120);
+    }
+  }, totalDelay);
+});
+
+totalDelay += 800;
+setTimeout(() => {
+  flashEl.style.transition = 'opacity 0.1s';
+  flashEl.style.opacity = '0.9';
+  setTimeout(() => {
+    flashEl.style.transition = 'opacity 0.6s';
+    flashEl.style.opacity = '0';
+    introEl.style.transition = 'opacity 0.8s';
+    introEl.style.opacity = '0';
+    setTimeout(() => {
+      introEl.style.display = 'none';
+      mainEl.classList.add('visible');
+      bloodDrip.style.opacity = '1';
+      startAudio();
+    }, 900);
+  }, 200);
+}, totalDelay);
+
+/* ══════════════════════════════════════
+   DIA 1 → DIA 2 NAVIGATION
+   sessionStorage 'day2Unlocked' controla se popup já foi aceito
+══════════════════════════════════════ */
+document.getElementById('btnNextDay').addEventListener('click', () => {
+  // Se já aceitou o popup nesta sessão, vai direto pro dia 2
+  if (sessionStorage.getItem('day2Unlocked') === '1') {
+    goToDay2();
+    return;
+  }
+  // Senão mostra o popup
+  confirmOverlay.classList.add('show');
+});
+
+document.getElementById('cfYesBtn').addEventListener('click', () => {
+  sessionStorage.setItem('day2Unlocked', '1');
+  confirmOverlay.classList.remove('show');
+  flashEl.style.transition = 'opacity 0.1s';
+  flashEl.style.opacity = '0.9';
+  setTimeout(() => {
+    flashEl.style.transition = 'opacity 0.6s';
+    flashEl.style.opacity = '0';
+    goToDay2();
+  }, 200);
+});
+
+document.getElementById('cfNoBtn').addEventListener('click', () => {
+  confirmOverlay.classList.remove('show');
+  // fica no dia 1, não faz nada
+});
+
+document.getElementById('btnBack').addEventListener('click', () => {
+  goToDay1();
+});
+
+function scrollTop() {
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
+function goToDay2() {
+  day1El.style.display = 'none';
+  scrollTop();
+  day2El.style.display = 'block';
+}
+
+function goToDay1() {
+  day2El.style.display = 'none';
+  day3El.style.display = 'none';
+  day4El.style.display = 'none';
+  day5El.style.display = 'none';
+  day6El.style.display = 'none';
+  day7El.style.display = 'none';
+  day1312El.style.display = 'none';
+  day1328El.style.display = 'none';
+  scrollTop();
+  day1El.style.display = 'block';
+}
+
+function goToDay3() {
+  day2El.style.display = 'none';
+  scrollTop();
+  day3El.style.display = 'block';
+}
+
+function goToDay4() {
+  day3El.style.display = 'none';
+  scrollTop();
+  day4El.style.display = 'block';
+}
+
+function goToDay5() {
+  day4El.style.display = 'none';
+  scrollTop();
+  day5El.style.display = 'block';
+  scheduleCrash();
+}
+
+/* ══════════════════════════════════════
+   PASSWORD PUZZLE — DIA 2 → DIA 3
+══════════════════════════════════════ */
+let pwAttempts = 0;
+
+document.getElementById('btnNextDay3').addEventListener('click', () => {
+  if (sessionStorage.getItem('day3Unlocked') === '1') {
+    goToDay3();
+    return;
+  }
+  pwAttempts = 0;
+  pwInput.value = '';
+  pwErrCount.textContent = '';
+  pwHint.classList.remove('visible');
+  pwOverlay.classList.add('show');
+  setTimeout(() => pwInput.focus(), 100);
+});
+
+function checkPassword() {
+  const val = pwInput.value.trim().toLowerCase();
+  if (val === 'john' || val === 'john doe') {
+    // Correct!
+    sessionStorage.setItem('day3Unlocked', '1');
+    pwOverlay.classList.remove('show');
+    flashEl.style.transition = 'opacity 0.1s';
+    flashEl.style.opacity = '0.9';
+    setTimeout(() => {
+      flashEl.style.transition = 'opacity 0.6s';
+      flashEl.style.opacity = '0';
+      goToDay3();
+    }, 200);
+  } else {
+    pwAttempts++;
+    pwInput.classList.add('shake');
+    setTimeout(() => pwInput.classList.remove('shake'), 400);
+    flashEl.style.transition = 'opacity 0.05s';
+    flashEl.style.opacity = '0.1';
+    setTimeout(() => { flashEl.style.transition = 'opacity 0.3s'; flashEl.style.opacity = '0'; }, 80);
+
+    if (pwAttempts >= 3) {
+      pwHint.classList.add('visible');
+      pwErrCount.textContent = `⚠ SENHA INCORRETA — TENTATIVA ${pwAttempts} — DICA LIBERADA`;
+      pwErrCount.style.color = '#aa4400';
+    } else {
+      pwErrCount.textContent = `⚠ SENHA INCORRETA — TENTATIVA ${pwAttempts}/3`;
+      pwErrCount.style.color = '#552222';
+    }
+    pwInput.value = '';
+    pwInput.focus();
+  }
+}
+
+document.getElementById('pwSubmitBtn').addEventListener('click', checkPassword);
+pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkPassword(); });
+
+document.getElementById('pwCancelBtn').addEventListener('click', () => {
+  pwOverlay.classList.remove('show');
+});
+
+document.getElementById('btnBack3').addEventListener('click', () => {
+  day3El.style.display = 'none';
+  scrollTop();
+  day2El.style.display = 'block';
+});
+
+/* ══════════════════════════════════════
+   DIA 3 → DIA 4 NAVIGATION
+══════════════════════════════════════ */
+document.getElementById('btnNextDay4').addEventListener('click', () => {
+  goToDay4();
+});
+
+document.getElementById('btnBack4').addEventListener('click', () => {
+  day4El.style.display = 'none';
+  scrollTop();
+  day3El.style.display = 'block';
+});
+
+/* ══════════════════════════════════════
+   DIA 4 → DIA 5 NAVIGATION
+══════════════════════════════════════ */
+document.getElementById('btnNextDay5').addEventListener('click', () => {
+  goToDay5();
+});
+
+document.getElementById('btnBack5').addEventListener('click', () => {
+  cancelCrash();
+  day5El.style.display = 'none';
+  scrollTop();
+  day4El.style.display = 'block';
+});
+
+/* ══════════════════════════════════════
+   DIA 5 → DIA 6 NAVIGATION (via minigame)
+══════════════════════════════════════ */
+document.getElementById('btnNextDay6').addEventListener('click', () => {
+  openRhythmGame();
+});
+
+document.getElementById('btnBack6').addEventListener('click', () => {
+  day6El.style.display = 'none';
+  scrollTop();
+  day5El.style.display = 'block';
+  scheduleCrash();
+});
+
+/* ══════════════════════════════════════
+   DIA 6 → DIA 7 NAVIGATION
+══════════════════════════════════════ */
+document.getElementById('btnNextDay7').addEventListener('click', () => {
+  day6El.style.display = 'none';
+  day7El.style.display = 'block';
+  scrollTop();
+});
+
+document.getElementById('btnBack7').addEventListener('click', () => {
+  day7El.style.display = 'none';
+  day6El.style.display = 'block';
+  scrollTop();
+});
+
+/* ══════════════════════════════════════
+   RHYTHM / SIMON SAYS — DIA 5→6
+══════════════════════════════════════ */
+const PAD_COLORS = [
+  { base: '#3a0000', lit: '#ff1a1a', border: '#660000', litBorder: '#ff5555', label: '◈' },
+  { base: '#2a1000', lit: '#ff6600', border: '#553300', litBorder: '#ff8833', label: '◆' },
+  { base: '#1a0030', lit: '#cc00ff', border: '#440066', litBorder: '#dd55ff', label: '◉' },
+  { base: '#001822', lit: '#00ccee', border: '#003344', litBorder: '#33ddff', label: '◇' },
+];
+
+let rgSequence    = [];
+let rgPlayerIdx   = 0;
+let rgRound       = 0;
+let rgWatching    = false;
+let rgLocked      = false;
+let rgInputTimer  = null;
+let rgTimerRaf    = null;
+let rgInputStart  = 0;
+const RG_INPUT_TIMEOUT = 5000;
+const RG_FLASH_DUR     = 420;
+const RG_INTER_FLASH   = 180;
+const ROUND_LENGTHS    = [3, 4, 5];
+
+function buildRgPads() {
+  const container = document.getElementById('rgPads');
+  container.innerHTML = '';
+  PAD_COLORS.forEach((c, i) => {
+    const pad = document.createElement('div');
+    pad.className = 'rg-pad';
+    pad.style.background   = c.base;
+    pad.style.borderColor  = c.border;
+    pad.innerHTML = `<span class="rg-label">${c.label}</span>`;
+    pad.addEventListener('click', () => onPadClick(i));
+    container.appendChild(pad);
+  });
+}
+
+function getRgPads() {
+  return document.querySelectorAll('.rg-pad');
+}
+
+function litPad(idx, isInput) {
+  const pads = getRgPads();
+  const pad  = pads[idx];
+  const c    = PAD_COLORS[idx];
+  pad.style.background  = c.lit;
+  pad.style.borderColor = c.litBorder;
+  pad.style.boxShadow   = `0 0 24px ${c.lit}, inset 0 0 12px rgba(255,255,255,0.15)`;
+  const dur = isInput ? 200 : RG_FLASH_DUR;
+  setTimeout(() => {
+    pad.style.background  = c.base;
+    pad.style.borderColor = c.border;
+    pad.style.boxShadow   = '';
+  }, dur);
+}
+
+function setPadsEnabled(enabled) {
+  getRgPads().forEach(p => { p.style.pointerEvents = enabled ? '' : 'none'; });
+}
+
+function startRgTimerBar() {
+  clearRgTimerBar();
+  const bar = document.getElementById('rgTimerBar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  bar.style.background = 'var(--blood)';
+  rgInputStart = performance.now();
+  function tick() {
+    const elapsed = performance.now() - rgInputStart;
+    const pct = Math.max(0, 100 - (elapsed / RG_INPUT_TIMEOUT) * 100);
+    bar.style.width = pct + '%';
+    bar.style.background = pct < 30 ? '#ff2200' : pct < 60 ? '#993300' : 'var(--blood)';
+    if (pct > 0) rgTimerRaf = requestAnimationFrame(tick);
+  }
+  rgTimerRaf = requestAnimationFrame(tick);
+}
+
+function clearRgTimerBar() {
+  if (rgTimerRaf) { cancelAnimationFrame(rgTimerRaf); rgTimerRaf = null; }
+  const bar = document.getElementById('rgTimerBar');
+  if (bar) { bar.style.width = '0%'; }
+}
+
+function openRhythmGame() {
+  buildRgPads();
+  document.getElementById('rhythmGame').classList.add('active');
+  rgRound = 0;
+  startRhythmRound();
+}
+
+function closeRhythmGame() {
+  document.getElementById('rhythmGame').classList.remove('active');
+  clearTimeout(rgInputTimer);
+  clearRgTimerBar();
+  rgLocked  = true;
+  rgWatching = false;
+}
+
+function startRhythmRound() {
+  clearTimeout(rgInputTimer);
+  clearRgTimerBar();
+  rgLocked    = true;
+  rgWatching  = true;
+  rgPlayerIdx = 0;
+  setPadsEnabled(false);
+
+  const len = ROUND_LENGTHS[rgRound];
+  rgSequence = Array.from({ length: len }, () => Math.floor(Math.random() * 4));
+
+  document.getElementById('rgProgress').textContent = `RODADA ${rgRound + 1} / 3`;
+  const msg = document.getElementById('rgMsg');
+  msg.textContent = 'MEMORIZANDO...';
+  msg.style.color = '#660000';
+
+  // Play the sequence
+  let delay = 700;
+  rgSequence.forEach(padIdx => {
+    setTimeout(() => { if (rgWatching) litPad(padIdx, false); }, delay);
+    delay += RG_FLASH_DUR + RG_INTER_FLASH;
+  });
+
+  // After sequence, hand control to player
+  setTimeout(() => {
+    rgWatching = false;
+    rgLocked   = false;
+    setPadsEnabled(true);
+    msg.textContent = 'SUA VEZ — REPITA A SEQUÊNCIA';
+    msg.style.color = '#884400';
+    startInputTimer();
+  }, delay + 400);
+}
+
+function startInputTimer() {
+  clearTimeout(rgInputTimer);
+  startRgTimerBar();
+  rgInputTimer = setTimeout(() => {
+    if (rgLocked) return;
+    rgLocked = true;
+    clearRgTimerBar();
+    setPadsEnabled(false);
+    const msg = document.getElementById('rgMsg');
+    msg.textContent = '⚠ TEMPO ESGOTADO — REINICIANDO...';
+    msg.style.color  = '#cc2200';
+    setTimeout(() => startRhythmRound(), 1400);
+  }, RG_INPUT_TIMEOUT);
+}
+
+function onPadClick(idx) {
+  if (rgLocked || rgWatching) return;
+  clearTimeout(rgInputTimer);
+  clearRgTimerBar();
+  litPad(idx, true);
+
+  const msg = document.getElementById('rgMsg');
+
+  if (idx === rgSequence[rgPlayerIdx]) {
+    rgPlayerIdx++;
+    if (rgPlayerIdx >= rgSequence.length) {
+      // Round complete
+      rgLocked = true;
+      setPadsEnabled(false);
+      rgRound++;
+      if (rgRound >= 3) {
+        msg.textContent = '✓ SINCRONIZAÇÃO COMPLETA — ACESSO CONCEDIDO';
+        msg.style.color  = '#33cc33';
+        document.getElementById('rgTimerBar').style.background = '#226622';
+        document.getElementById('rgTimerBar').style.width = '100%';
+        setTimeout(() => {
+          closeRhythmGame();
+          cancelCrash();
+          day5El.style.display = 'none';
+          day6El.style.display = 'block';
+          scrollTop();
+        }, 1600);
+      } else {
+        msg.textContent = `✓ SEQUÊNCIA CORRETA — PRÓXIMA RODADA`;
+        msg.style.color  = '#448844';
+        setTimeout(() => startRhythmRound(), 1200);
+      }
+    } else {
+      startInputTimer();
+    }
+  } else {
+    // Wrong pad
+    rgLocked = true;
+    setPadsEnabled(false);
+    const pads = getRgPads();
+    pads[idx].style.background  = '#220000';
+    pads[idx].style.boxShadow   = '0 0 18px #ff0000';
+    msg.textContent = '✗ SEQUÊNCIA INCORRETA — REINICIANDO...';
+    msg.style.color  = '#cc2200';
+    setTimeout(() => startRhythmRound(), 1400);
+  }
+}
+
+/* ══════════════════════════════════════
+   DIA 7 → DIA 1312 NAVIGATION (via generator)
+══════════════════════════════════════ */
+document.getElementById('btnNextDay1312').addEventListener('click', () => {
+  openGeneratorGame('day7→day1312');
+});
+
+document.getElementById('btnBack1312').addEventListener('click', () => {
+  day1312El.style.display = 'none';
+  scrollTop();
+  day7El.style.display = 'block';
+});
+
+/* ══════════════════════════════════════
+   DIA 1312 → DIA 1328 NAVIGATION
+══════════════════════════════════════ */
+function goToDay1328() {
+  flashEl.style.transition = 'opacity 0.1s';
+  flashEl.style.opacity = '0.9';
+  setTimeout(() => {
+    flashEl.style.transition = 'opacity 0.6s';
+    flashEl.style.opacity = '0';
+    day1312El.style.display = 'none';
+    day1328El.style.display = 'block';
+    scrollTop();
+  }, 200);
+}
+
+document.getElementById('btnBack1328').addEventListener('click', () => {
+  day1328El.style.display = 'none';
+  day1312El.style.display = 'block';
+  scrollTop();
+});
+
+document.getElementById('btnNextDay1328').addEventListener('click', () => {
+  startForbiddenSequence();
+});
+
+document.getElementById('btnNextDay1312Mini').addEventListener('click', () => {
+  goToDay1328();
+});
+
+function goToDay1312() {
+  day7El.style.display = 'none';
+  scrollTop();
+  day1312El.style.display = 'block';
+}
+
+/* ══════════════════════════════════════
+   FORSAKEN GENERATOR MINIGAME
+   Hold to charge (3 stages). Skill checks appear randomly.
+   Hit the check → bonus. Miss → spark + progress penalty.
+══════════════════════════════════════ */
+const CIRCUMFERENCE_OUTER = 2 * Math.PI * 65; // ~408.4
+const CIRCUMFERENCE_SC    = 2 * Math.PI * 56;  // ~351.9
+
+let genTarget       = null;   // 'day7→day1312' | 'day1328→end'
+let genStage        = 0;      // 0-2
+let genProgress     = 0;      // 0–100 per stage
+let genHolding      = false;
+let genRafId        = null;
+let genLastTime     = 0;
+let genLocked       = false;
+let genScVisible    = false;
+let genScAngle      = 0;      // current needle angle (degrees)
+let genScSpeed      = 0;      // degrees/ms
+let genScZoneStart  = 0;      // zone start angle (degrees)
+let genScZoneSize   = 0;      // zone arc (degrees)
+let genScRafId      = null;
+let genScLastTime   = 0;
+let genScTimeout    = null;
+let genNextScTime   = 0;      // ms until next skill check fires
+
+const GEN_FILL_RATE   = 11;   // % per second while holding
+const GEN_DRAIN_RATE  = 4;    // % per second while not holding
+const GEN_PENALTY     = 22;   // % lost on missed skill check
+
+function openGeneratorGame(target) {
+  genTarget   = target;
+  genStage    = 0;
+  genProgress = 0;
+  genHolding  = false;
+  genLocked   = false;
+  genScVisible = false;
+
+  const overlay = document.getElementById('generatorGame');
+  overlay.style.display = 'flex';
+  overlay.classList.add('active');
+
+  updateGenRing(0);
+  updateGenStages(-1);
+  document.getElementById('genProgress').textContent = 'ESTÁGIO 1 / 3';
+  document.getElementById('genMsg').textContent = '';
+  document.getElementById('genMsg').style.color = '#880000';
+  document.getElementById('genTimerBar').style.width = '0%';
+
+  closeGenSkillCheck(false);
+  scheduleNextSkillCheck();
+  startGenLoop();
+}
+
+function closeGeneratorGame() {
+  stopGenLoop();
+  clearGenSkillCheck();
+  document.getElementById('generatorGame').style.display = 'none';
+  document.getElementById('generatorGame').classList.remove('active');
+  genHolding = false;
+  genLocked  = false;
+  releaseGenBtn();
+}
+
+/* ── Hold button events ── */
+const genCoreBtn = document.getElementById('genCoreBtn');
+
+function pressGenBtn() {
+  if (genLocked || genScVisible) return;
+  genHolding = true;
+  genCoreBtn.classList.add('holding');
+}
+function releaseGenBtn() {
+  genHolding = false;
+  genCoreBtn.classList.remove('holding');
+}
+
+genCoreBtn.addEventListener('mousedown',  pressGenBtn);
+genCoreBtn.addEventListener('touchstart', e => { e.preventDefault(); pressGenBtn(); }, { passive: false });
+window.addEventListener('mouseup',  releaseGenBtn);
+window.addEventListener('touchend', releaseGenBtn);
+
+/* ── Main loop ── */
+function startGenLoop() {
+  stopGenLoop();
+  genLastTime = performance.now();
+  function loop(now) {
+    const dt = (now - genLastTime) / 1000; // seconds
+    genLastTime = now;
+
+    if (!genLocked) {
+      if (genHolding) {
+        genProgress = Math.min(100, genProgress + GEN_FILL_RATE * dt);
+      } else {
+        genProgress = Math.max(0, genProgress - GEN_DRAIN_RATE * dt);
+      }
+
+      updateGenRing(genProgress / 100);
+      document.getElementById('genTimerBar').style.width = genProgress + '%';
+
+      if (genProgress >= 100) {
+        genProgress = 0;
+        completeGenStage();
+      }
+    }
+
+    genRafId = requestAnimationFrame(loop);
+  }
+  genRafId = requestAnimationFrame(loop);
+}
+
+function stopGenLoop() {
+  if (genRafId) { cancelAnimationFrame(genRafId); genRafId = null; }
+}
+
+function updateGenRing(pct) {
+  const fill = document.getElementById('genRingFill');
+  const offset = CIRCUMFERENCE_OUTER * (1 - pct);
+  fill.style.strokeDashoffset = offset;
+  fill.classList.toggle('danger', pct > 0.75);
+}
+
+function updateGenStages(completedUpTo) {
+  for (let i = 0; i < 3; i++) {
+    const dot = document.getElementById('genDot' + i);
+    if (i <= completedUpTo) {
+      dot.classList.add('done');
+    } else {
+      dot.classList.remove('done');
+    }
+  }
+}
+
+function completeGenStage() {
+  genLocked = true;
+  releaseGenBtn();
+  clearGenSkillCheck();
+
+  updateGenStages(genStage);
+
+  const msg = document.getElementById('genMsg');
+  msg.style.color = '#448844';
+  genStage++;
+
+  if (genStage >= 3) {
+    msg.textContent = '✓ GERADOR ATIVO — ACESSO CONCEDIDO';
+    stopGenLoop();
+    flashEl.style.transition = 'opacity 0.1s';
+    flashEl.style.opacity = '0.6';
+    setTimeout(() => {
+      flashEl.style.transition = 'opacity 0.5s';
+      flashEl.style.opacity = '0';
+      closeGeneratorGame();
+      onGeneratorComplete();
+    }, 1400);
+  } else {
+    msg.textContent = `✓ ESTÁGIO ${genStage} COMPLETO — CONTINUANDO...`;
+    document.getElementById('genProgress').textContent = `ESTÁGIO ${genStage + 1} / 3`;
+    setTimeout(() => {
+      msg.textContent = '';
+      genLocked = false;
+      genProgress = 0;
+      updateGenRing(0);
+      scheduleNextSkillCheck();
+      startGenLoop();
+    }, 900);
+  }
+}
+
+function onGeneratorComplete() {
+  if (genTarget === 'day7→day1312') {
+    goToDay1312();
+  } else if (genTarget === 'day1328→end') {
+    startForbiddenSequence();
+  }
+}
+
+/* ── Skill checks ── */
+function scheduleNextSkillCheck() {
+  if (genScTimeout) clearTimeout(genScTimeout);
+  const delay = 3500 + Math.random() * 4000;
+  genNextScTime = delay;
+  genScTimeout = setTimeout(() => {
+    if (!genLocked) showGenSkillCheck();
+  }, delay);
+}
+
+function showGenSkillCheck() {
+  if (genLocked) return;
+  genScVisible = true;
+  genHolding   = false;
+  releaseGenBtn();
+
+  // Pause the gen loop fill while skill check is active
+  // (loop still runs but genHolding=false so it drains — extra pressure)
+
+  // Zone: random arc 48–70 degrees, placed randomly
+  genScZoneSize  = 48 + Math.random() * 22;
+  genScZoneStart = Math.random() * 360;
+  genScAngle     = Math.random() * 360;
+  genScSpeed     = 260 + Math.random() * 140; // degrees/sec
+  if (Math.random() > 0.5) genScSpeed = -genScSpeed; // reverse
+
+  // Draw zone on SVG
+  const zone = document.getElementById('genScZone');
+  const circumf = CIRCUMFERENCE_SC;
+  const arcLen = (genScZoneSize / 360) * circumf;
+  const offset = circumf - (genScZoneStart / 360) * circumf;
+  zone.style.strokeDasharray = `${arcLen} ${circumf - arcLen}`;
+  zone.style.strokeDashoffset = offset;
+
+  document.getElementById('genSkillCheck').classList.add('visible');
+
+  genScLastTime = performance.now();
+  function scLoop(now) {
+    const dt = (now - genScLastTime) / 1000;
+    genScLastTime = now;
+    genScAngle = (genScAngle + genScSpeed * dt + 360) % 360;
+    const needle = document.getElementById('genScNeedle');
+    needle.style.transform = `translateX(-50%) translateY(-100%) rotate(${genScAngle}deg)`;
+    if (genScVisible) genScRafId = requestAnimationFrame(scLoop);
+  }
+  genScRafId = requestAnimationFrame(scLoop);
+
+  // Auto-miss after 2.8s
+  genScTimeout = setTimeout(() => {
+    if (genScVisible) onGenSkillMiss();
+  }, 2800);
+}
+
+function isInZone(angle, zoneStart, zoneSize) {
+  // Normalize
+  const end = (zoneStart + zoneSize) % 360;
+  if (zoneStart <= end) {
+    return angle >= zoneStart && angle <= end;
+  } else {
+    return angle >= zoneStart || angle <= end;
+  }
+}
+
+document.getElementById('genScRing').addEventListener('click', onGenSkillClick);
+document.getElementById('genScRing').addEventListener('touchstart', e => { e.preventDefault(); onGenSkillClick(); }, { passive: false });
+
+function onGenSkillClick() {
+  if (!genScVisible) return;
+  if (isInZone(genScAngle, genScZoneStart, genScZoneSize)) {
+    onGenSkillHit();
+  } else {
+    onGenSkillMiss();
+  }
+}
+
+function onGenSkillHit() {
+  const msg = document.getElementById('genMsg');
+  msg.textContent = '✓ CHECK OK';
+  msg.style.color = '#448844';
+  closeGenSkillCheck(true);
+  genProgress = Math.min(100, genProgress + 12); // bonus progress
+  scheduleNextSkillCheck();
+}
+
+function onGenSkillMiss() {
+  const msg = document.getElementById('genMsg');
+  msg.textContent = '✗ FALHA NO CHECK — RETROCESSO';
+  msg.style.color = '#cc2200';
+  closeGenSkillCheck(false);
+  genProgress = Math.max(0, genProgress - GEN_PENALTY);
+
+  // Spark animation
+  const wrap = document.getElementById('genCoreWrap');
+  const spark = document.createElement('div');
+  spark.className = 'gen-spark';
+  wrap.appendChild(spark);
+  setTimeout(() => spark.remove(), 450);
+
+  scheduleNextSkillCheck();
+}
+
+function closeGenSkillCheck(success) {
+  genScVisible = false;
+  if (genScRafId) { cancelAnimationFrame(genScRafId); genScRafId = null; }
+  document.getElementById('genSkillCheck').classList.remove('visible');
+}
+
+function clearGenSkillCheck() {
+  genScVisible = false;
+  if (genScRafId) { cancelAnimationFrame(genScRafId); genScRafId = null; }
+  if (genScTimeout) { clearTimeout(genScTimeout); genScTimeout = null; }
+  document.getElementById('genSkillCheck').classList.remove('visible');
+}
+
+let genKeyboardHolding = false;
+let forbiddenImageWindow = null;
+let forbiddenEndTimer = null;
+let forbiddenCloseTimer = null;
+let forbiddenSequenceStarted = false;
+
+window.addEventListener('pointerup', releaseGenBtn);
+window.addEventListener('pointercancel', releaseGenBtn);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) releaseGenBtn();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const overlayActive = document.getElementById('generatorGame').classList.contains('active');
+  if (!overlayActive && !forbiddenSequenceStarted) return;
+
+  if ((e.code === 'Space' || e.code === 'Enter') && genScVisible) {
+    e.preventDefault();
+    onGenSkillClick();
+    return;
+  }
+
+  if (overlayActive && e.code === 'Space' && !genScVisible) {
+    e.preventDefault();
+    genKeyboardHolding = true;
+    pressGenBtn();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' && genKeyboardHolding) {
+    genKeyboardHolding = false;
+    releaseGenBtn();
+  }
+});
+
+function reserveForbiddenReveal() {
+  if (forbiddenImageWindow && !forbiddenImageWindow.closed) return forbiddenImageWindow;
+  try {
+    forbiddenImageWindow = window.open('', '_blank');
+    if (forbiddenImageWindow) {
+      forbiddenImageWindow.document.write('<!doctype html><html><head><title>...</title><style>html,body{margin:0;height:100%;background:#000;}</style></head><body></body></html>');
+      forbiddenImageWindow.document.close();
+    }
+  } catch (err) {
+    forbiddenImageWindow = null;
+  }
+  return forbiddenImageWindow;
+}
+
+function fadeOutBgAudio(duration = 900) {
+  const audio = document.getElementById('bgAudio');
+  if (!audio) return;
+  const startVol = typeof audio.volume === 'number' ? audio.volume : 0.7;
+  const steps = 18;
+  const interval = duration / steps;
+  let step = 0;
+  const fade = setInterval(() => {
+    step++;
+    audio.volume = Math.max(0, startVol * (1 - step / steps));
+    if (step >= steps) {
+      clearInterval(fade);
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = startVol;
+    }
+  }, interval);
+}
+
+function resetForbiddenSequence() {
+  clearTimeout(forbiddenEndTimer);
+  clearTimeout(forbiddenCloseTimer);
+  forbiddenSequenceStarted = false;
+  vhsVideo.pause();
+  vhsVideo.currentTime = 0;
+  vhsVideo.classList.remove('ended');
+  vhsBlackout.classList.remove('visible');
+  vhsMessage.classList.remove('visible');
+  vhsSequence.classList.remove('active');
+}
+
+function revealForbiddenImage() {
+  const imagePath = 'forbidden-door.jpg';
+  if (forbiddenImageWindow && !forbiddenImageWindow.closed) {
+    forbiddenImageWindow.location.replace(imagePath);
+    try { forbiddenImageWindow.focus(); } catch (err) {}
+    return;
+  }
+  try {
+    forbiddenImageWindow = window.open(imagePath, '_blank');
+  } catch (err) {
+    forbiddenImageWindow = null;
+  }
+}
+
+function attemptForbiddenClosure() {
+  try {
+    window.open('', '_self');
+    window.close();
+  } catch (err) {}
+
+  setTimeout(() => {
+    if (!window.closed) {
+      location.replace('about:blank');
+    }
+  }, 900);
+}
+
+function endForbiddenSequence() {
+  vhsVideo.classList.add('ended');
+  vhsBlackout.classList.add('visible');
+  forbiddenEndTimer = setTimeout(() => {
+    revealForbiddenImage();
+    vhsMessage.classList.add('visible');
+    forbiddenCloseTimer = setTimeout(() => {
+      attemptForbiddenClosure();
+    }, 2400);
+  }, 750);
+}
+
+function startForbiddenSequence() {
+  if (forbiddenSequenceStarted) return;
+  forbiddenSequenceStarted = true;
+  reserveForbiddenReveal();
+  closeGeneratorGame();
+  cancelCrash();
+  fadeOutBgAudio(850);
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  vhsVideo.classList.remove('ended');
+  vhsBlackout.classList.remove('visible');
+  vhsMessage.classList.remove('visible');
+  vhsSequence.classList.add('active');
+  vhsVideo.currentTime = 0;
+  const playAttempt = vhsVideo.play();
+  if (playAttempt && typeof playAttempt.then === 'function') {
+    playAttempt.catch(() => {
+      endForbiddenSequence();
+    });
+  }
+}
+
+vhsVideo.addEventListener('ended', endForbiddenSequence);
+vhsVideo.addEventListener('error', endForbiddenSequence);
+
+/* ══════════════════════════════════════
+   CRASH SYSTEM — DIA 5
+══════════════════════════════════════ */
+let crashScheduleTimer = null;
+let crashEndTimer      = null;
+let crashRafId         = null;
+let crashActive        = false;
+
+const crashOverlay = document.getElementById('crashOverlay');
+const crashCanvas  = document.getElementById('crashCanvas');
+const crashCtx     = crashCanvas.getContext('2d');
+
+function scheduleCrash() {
+  cancelCrash();
+  crashScheduleTimer = setTimeout(triggerCrash, 10000);
+}
+
+function cancelCrash() {
+  clearTimeout(crashScheduleTimer);
+  clearTimeout(crashEndTimer);
+  if (crashRafId) { cancelAnimationFrame(crashRafId); crashRafId = null; }
+  crashOverlay.classList.remove('active');
+  crashActive = false;
+}
+
+function triggerCrash() {
+  crashActive = true;
+  crashCanvas.width  = window.innerWidth;
+  crashCanvas.height = window.innerHeight;
+
+  // Pause music
+  const audio = document.getElementById('bgAudio');
+  if (audio) { audio.pause(); }
+
+  // Play glitch sound NOW (during crash)
+  const glitchAudio = document.getElementById('glitchAudio');
+  if (glitchAudio) {
+    glitchAudio.currentTime = 0;
+    glitchAudio.loop = true;
+    glitchAudio.volume = 1;
+    glitchAudio.play().catch(() => {});
+  }
+
+  // Show overlay
+  crashOverlay.classList.add('active');
+
+  // Random red/white flash
+  const flashLayer = document.getElementById('crashFlashLayer');
+  const flashInt = setInterval(() => {
+    if (!crashActive) return;
+    if (Math.random() > 0.7) {
+      const col = Math.random() > 0.5 ? 'rgba(255,0,0,0.35)' : 'rgba(255,255,255,0.12)';
+      flashLayer.style.background = col;
+      flashLayer.style.opacity = '1';
+      setTimeout(() => { flashLayer.style.opacity = '0'; }, 40 + Math.random() * 60);
+    }
+  }, 120);
+
+  // Mutate crash-code text every ~600ms
+  const crashCodeEl = document.getElementById('crashCode');
+  const codeLines = [
+    ['ERR :: 0xDEAD4F1A :: HEAP OVERFLOW',       'STACK TRACE: fn_███████ → fn_███████ → fn_███████', 'LAST KNOWN STATE: UNSTABLE',              '████████████████████████████████████████'],
+    ['KERNEL PANIC :: 0xFF3A :: NULL PTR DEREF',  'PROCESS: [UNKNOWN] PID:████  TGID:████',           'SEGFAULT AT 0x0000000000000000',           '████████████ DUMPING CORE ████████████'],
+    ['FATAL EXCEPTION — SECTOR 0x7C → CORRUPT',  'WATCHDOG TIMEOUT — PROCESS FROZEN',               'RECOVERY FAILED — ROLLBACK ABORTED',       '████████████████████████████████████████'],
+    ['!! ACCESS VIOLATION :: READ 0xDEADBEEF',    'IRQL_NOT_LESS_OR_EQUAL — THREAD KILLED',          'MODULE: ██████████ — SIGNATURE INVALID',   '████████ INTEGRITY CHECK FAILED ████████'],
+    ['0xC0000005 :: EXCEPTION_ACCESS_VIOLATION',  'EIP: 00000000  ESP: ████████  EBP: ████████',     'ERR STACK: [████] [████] [████] [████]',   '████████████████████████████████████████'],
+  ];
+  const codeInt = setInterval(() => {
+    if (!crashActive) return;
+    const lines = codeLines[Math.floor(Math.random() * codeLines.length)];
+    crashCodeEl.innerHTML = lines.join('<br>');
+  }, 600);
+
+  // Mutate title occasionally
+  const titleEl = document.getElementById('crashTitleEl');
+  const titles = ['FALHA CRÍTICA','SISTEMA CORROMPIDO','ERRO FATAL','KERNEL PANIC','ACESSO NEGADO','████████████'];
+  const titleInt = setInterval(() => {
+    if (!crashActive) return;
+    if (Math.random() > 0.55) {
+      titleEl.textContent = titles[Math.floor(Math.random() * titles.length)];
+      setTimeout(() => { if (crashActive) titleEl.textContent = 'FALHA CRÍTICA'; }, 120);
+    }
+  }, 400);
+
+  // Console binary spam
+  const consoleBin = setInterval(() => {
+    const line = Array.from({length: 64}, () => Math.random() > 0.5 ? '1' : '0').join('');
+    console.log(`%c${line}`, 'color:#cc0000;font-family:monospace;font-size:11px');
+  }, 30);
+
+  // Visual binary rain on crash canvas — chaotic, multi-char
+  const chars = '01█▓▒░⁰¹ÆØ∅∞⚠'.split('');
+  const cCols  = Math.floor(crashCanvas.width / 11);
+  const cDrops = Array(cCols).fill(0).map(() => Math.random() * -60);
+
+  function drawCrash() {
+    if (!crashActive) return;
+    crashCtx.fillStyle = 'rgba(0,0,0,0.12)';
+    crashCtx.fillRect(0, 0, crashCanvas.width, crashCanvas.height);
+
+    // Occasional horizontal tear slice
+    if (Math.random() > 0.85) {
+      const y = Math.random() * crashCanvas.height;
+      const h = 2 + Math.random() * 8;
+      const shift = (Math.random() - 0.5) * 40;
+      crashCtx.drawImage(crashCanvas, 0, y, crashCanvas.width, h, shift, y, crashCanvas.width, h);
+    }
+
+    cDrops.forEach((y, i) => {
+      const char  = chars[Math.floor(Math.random() * chars.length)];
+      const alpha = 0.4 + Math.random() * 0.6;
+      const r = Math.random();
+      if (r > 0.92) {
+        crashCtx.fillStyle = `rgba(255,255,255,${alpha * 0.8})`;
+        crashCtx.font = `bold 14px "Courier New"`;
+      } else if (r > 0.78) {
+        crashCtx.fillStyle = `rgba(255,30,30,${alpha})`;
+        crashCtx.font = `bold 13px "Courier New"`;
+      } else {
+        crashCtx.fillStyle = `rgba(180,0,0,${alpha * 0.8})`;
+        crashCtx.font = `11px "Courier New"`;
+      }
+      crashCtx.fillText(char, i * 11, y * 13);
+      if (y * 13 > crashCanvas.height && Math.random() > 0.94) cDrops[i] = 0;
+      else cDrops[i] += 1.5 + Math.random() * 2.5;
+    });
+
+    crashRafId = requestAnimationFrame(drawCrash);
+  }
+
+  drawCrash();
+
+  // After 10 s, end crash
+  crashEndTimer = setTimeout(() => {
+    crashActive = false;
+    clearInterval(consoleBin);
+    clearInterval(flashInt);
+    clearInterval(codeInt);
+    clearInterval(titleInt);
+    cancelAnimationFrame(crashRafId);
+
+    // Stop glitch sound
+    if (glitchAudio) {
+      glitchAudio.loop = false;
+      glitchAudio.pause();
+      glitchAudio.currentTime = 0;
+    }
+
+    // Fade out overlay
+    crashOverlay.style.transition = 'opacity 0.8s';
+    crashOverlay.style.opacity = '0';
+    setTimeout(() => {
+      crashOverlay.classList.remove('active');
+      crashOverlay.style.opacity = '';
+      crashOverlay.style.transition = '';
+
+      // Resume music with 5s fade-in
+      if (audio) {
+        audio.volume = 0;
+        const p = audio.play();
+        if (p && typeof p.then === 'function') p.catch(() => {});
+        const fadeDuration = 5000;
+        const targetVol    = 0.7;
+        const steps        = 60;
+        const interval     = fadeDuration / steps;
+        let step = 0;
+        const fadeIn = setInterval(() => {
+          step++;
+          audio.volume = Math.min(targetVol, (step / steps) * targetVol);
+          if (step >= steps) clearInterval(fadeIn);
+        }, interval);
+      }
+    }, 850);
+  }, 10000);
+}
+
+/* ══════════════════════════════════════
+   AUDIO
+══════════════════════════════════════ */
+let audioStarted = false;
+
+function startAudio() {
+  const audio = document.getElementById('bgAudio');
+  if (!audio) return;
+  audio.volume = 0.7;
+  const p = audio.play();
+  if (p && typeof p.then === 'function') {
+    p.then(() => { audioStarted = true; })
+     .catch(() => {});
+  } else {
+    audioStarted = true;
+  }
+}
+
+['click', 'keydown', 'touchstart', 'pointerdown'].forEach(ev => {
+  window.addEventListener(ev, () => {
+    if (!audioStarted) startAudio();
+  }, { passive: true });
+});
+
+/* ══════════════════════════════════════
+   BODY GLITCH
+══════════════════════════════════════ */
+setInterval(() => {
+  if (Math.random() > 0.96) {
+    document.body.style.transform = `translateX(${(Math.random()-0.5)*5}px)`;
+    setTimeout(() => document.body.style.transform = '', 80);
+  }
+}, 600);
+
+/* ══════════════════════════════════════
+   ANOMALY METER — DIA 1
+══════════════════════════════════════ */
+(function() {
+  const pips = document.querySelectorAll('#pipRow1 .pip');
+  const numEl = document.getElementById('anomalyNum1');
+  let active = 3;
+  setInterval(() => {
+    if (Math.random() > 0.8) {
+      if (Math.random() > 0.5 && active < 8) {
+        active++;
+        pips[active-1].classList.add('on', 'pulse');
+      } else if (active > 3) {
+        pips[active-1].classList.remove('on', 'pulse');
+        active--;
+      }
+      numEl.textContent = `0${active}/08`;
+    }
+  }, 4000);
+})();
+
+/* ══════════════════════════════════════
+   ANOMALY METER — DIA 2
+══════════════════════════════════════ */
+(function() {
+  const pips = document.querySelectorAll('#pipRow2 .pip');
+  const numEl = document.getElementById('anomalyNum2');
+  let active = 5;
+  setInterval(() => {
+    if (Math.random() > 0.8) {
+      if (Math.random() > 0.5 && active < 8) {
+        active++;
+        pips[active-1].classList.add('on', 'pulse');
+      } else if (active > 5) {
+        pips[active-1].classList.remove('on', 'pulse');
+        active--;
+      }
+      numEl.textContent = `0${active}/08`;
+    }
+  }, 4000);
+})();
+
+/* ══════════════════════════════════════
+   ANOMALY METER — DIA 3
+══════════════════════════════════════ */
+(function() {
+  const pips = document.querySelectorAll('#pipRow3 .pip');
+  const numEl = document.getElementById('anomalyNum3');
+  let active = 7;
+  setInterval(() => {
+    if (Math.random() > 0.8) {
+      if (Math.random() > 0.5 && active < 8) {
+        active++;
+        pips[active-1].classList.add('on', 'pulse');
+      } else if (active > 6) {
+        pips[active-1].classList.remove('on', 'pulse');
+        active--;
+      }
+      numEl.textContent = `0${active}/08`;
+    }
+  }, 4000);
+})();
+
+/* ══════════════════════════════════════
+   ANOMALY METER — DIA 4
+══════════════════════════════════════ */
+(function() {
+  const pips = document.querySelectorAll('#pipRow4 .pip');
+  const numEl = document.getElementById('anomalyNum4');
+  // Todos os 8 ativos — sem oscilação, travado no máximo
+  setInterval(() => {
+    pips.forEach(p => p.classList.add('on', 'pulse'));
+    numEl.textContent = '08/08';
+  }, 3000);
+})();
+</script>
+
+</body>
+</html>
